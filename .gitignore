@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...menos la PLANTILLA, que no lleva ningún secreto y es lo que dice qué hay que
+# poner en Vercel. Sin esta excepción, `.env*` la ignora y nace invisible.
+!.env.example
 
 # vercel
 .vercel

@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
+import PrecioDelPlan from "@/app/components/PrecioDelPlan";
 const features = [
   "Acceso completo al Método 590",
   "Acceso completo a la plataforma",
@@ -77,11 +78,13 @@ function EssentialPlanContent() {
 
                   <div className="flex flex-col justify-center px-6 py-8 sm:w-[200px] lg:w-[210px] shrink-0">
                     <p className="text-2xl lg:text-3xl font-extrabold text-zinc-800 mb-1">Essential</p>
-                    <div className="flex items-baseline gap-1 mb-3" style={{ color: "#C0353E" }}>
-                      <span className="text-4xl lg:text-5xl font-extrabold leading-none">$10</span>
-                      <span className="text-xs lg:text-sm font-bold"> USD/mes</span>
-                    </div>
-                    <p className="text-[11px] lg:text-[12px] text-zinc-400 font-medium mb-2">Facturación automática cada 4 semanas</p>
+                    <PrecioDelPlan
+                      clave="Essential"
+                      centavosDeRespaldo={1000}
+                      recurrenteDeRespaldo={true}
+                      color="#C0353E"
+                      claseNota="text-[11px] lg:text-[12px] text-zinc-400 font-medium mb-2"
+                    />
                     <p className="text-[12px] lg:text-[13px] text-zinc-500 font-medium leading-relaxed">
                       Para quienes quieren aprender con estructura clara y a su propio ritmo.
                     </p>

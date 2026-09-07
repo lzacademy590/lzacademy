@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
 import { todayPT, nowPTInput } from "../_utils/ptTime";
-import { CHECKOUT_PLAN_KEYS } from "@/app/lib/plans";
+import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 
 interface StartDate {
     value: string;
@@ -63,7 +64,18 @@ export default function FechasPage() {
     // (mismo catálogo del backend) en vez de hardcodearse, para que un plan nuevo
     // o un cambio de `requiresCohort` no deje este panel desincronizado.
     const { requiresCohort } = usePlanCohorte();
-    const cohortPlanKeys = CHECKOUT_PLAN_KEYS.filter(requiresCohort);
+    /*
+      ⚠️ La LISTA también sale del catálogo, no solo `requiresCohort`. Este
+      bloque ya derivaba la regla de `/config/plans` —su comentario de arriba lo
+      dice— pero seguía filtrando sobre `CHECKOUT_PLAN_KEYS`, una constante: un
+      plan abierto en el admin de la plataforma no aparecía aquí, así que no se le
+      podía excluir de ninguna fecha. Medio panel era dinámico.
+    */
+    const catalogoDeFechas = usePlanesDelCatalogo();
+    const cohortPlanKeys = useMemo(
+        () => planesDeCheckout(catalogoDeFechas).map((p) => p.key).filter(requiresCohort),
+        [catalogoDeFechas, requiresCohort],
+    );
 
     // Start dates
     const [dates, setDates]     = useState<StartDate[]>([]);
@@ -112,57 +124,128 @@ export default function FechasPage() {
     useEffect(() => { load(); }, [load]);
 
     // ─── Start dates ───────────────────────────────────────────────
-    async function saveDates(updatedDates: StartDate[]) {
+    /*
+      ⚠️⚠️ **El `fetch` va en try/catch, y no es defensa de más.** Sin él, un fallo
+      de RED —el backend reiniciándose, el wifi cayéndose— rechaza la promesa, la
+      excepción se pierde y pasan tres cosas a la vez: no se pinta ningún error,
+      `saving` se queda en `true` (y con él TODOS los chips deshabilitados, que
+      llevan `disabled={saving}`), y el panel queda inerte hasta recargar.
+
+      Medido el 2026-09-06: se pulsó "Agregar", la fecha no se guardó, el campo se
+      vació y la pantalla no dijo NADA — el error solo estaba en la consola. En un
+      panel que decide qué planes se abren en qué fecha, un guardado que se pierde
+      en silencio es de lo peor que puede pasar.
+
+      Devuelve si se guardó, para que quien llama no dé por hecho que sí.
+    */
+    async function saveDates(updatedDates: StartDate[]): Promise<boolean> {
         setSaving(true); setSaved(false); setError("");
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push("/admin/login"); return; }
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/start-dates`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ dates: updatedDates }),
-        });
-        if (res.ok) { setDates(updatedDates); setSaved(true); setTimeout(() => setSaved(false), 2500); }
-        else setError("Error guardando los cambios. Intenta de nuevo.");
-        setSaving(false);
+        if (!session) { router.push("/admin/login"); return false; }
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/start-dates`, {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ dates: updatedDates }),
+            });
+            if (res.ok) {
+                setDates(updatedDates); setSaved(true); setTimeout(() => setSaved(false), 2500);
+                return true;
+            }
+            setError("Error guardando los cambios. Intenta de nuevo.");
+            return false;
+        } catch {
+            // Ni siquiera llegó: se distingue de un rechazo del servidor porque lo
+            // que hay que hacer es distinto (mirar la conexión, no los datos).
+            setError("No se pudo conectar con el servidor. Los cambios NO se guardaron.");
+            return false;
+        } finally {
+            setSaving(false);
+        }
     }
 
     function handleToggle(index: number) {
         saveDates(dates.map((d, i) => i === index ? { ...d, enabled: !d.enabled } : d));
     }
+    /*
+      ⚠️⚠️ **Borrar una fecha PREGUNTA antes, y no es una cortesía.** Este panel
+      escribe en la base de PRODUCCIÓN: la papelera retiraba la fecha de arranque
+      de un grupo —con sus exclusiones por plan y dejando sus horarios huérfanos—
+      en un clic, sin confirmación y sin deshacer. Medido el 2026-09-06: 12 px de
+      separación entre el interruptor "Especial" (inocuo y reversible) y la
+      papelera, con alturas de 20 y 28 px. Un resbalón del ratón retiraba del
+      calendario una fecha ya vendida.
+
+      Y al lado ya existía el camino reversible: marcarla "Inactiva".
+
+      ⚠️ El aviso NOMBRA la fecha. Un "¿seguro?" genérico no protege de lo que
+      protege esto, que es haber pulsado en la fila equivocada — el mismo motivo
+      por el que a 375 px había que arreglar el título truncado.
+    */
     function handleDelete(index: number) {
+        const f = dates[index];
+        const ok = window.confirm(
+            `¿Quitar la fecha de inicio ${f?.label ?? f?.value}?\n\n` +
+            "Deja de ofrecerse como fecha de arranque en el sitio y en la plataforma, " +
+            "con sus planes excluidos, y sus horarios se quedan sin fecha.\n\n" +
+            "Si solo quieres dejar de ofrecerla, márcala como Inactiva: eso se puede deshacer."
+        );
+        if (!ok) return;
         saveDates(dates.filter((_, i) => i !== index));
     }
-    function handleAdd() {
+    async function handleAdd() {
         if (!newDate) return;
         if (dates.some(d => d.value === newDate)) { setError("Esa fecha ya existe."); return; }
         const updated = [...dates, { value: newDate, label: buildLabel(newDate), enabled: true }]
             .sort((a, b) => a.value.localeCompare(b.value));
-        setNewDate(""); setError("");
-        saveDates(updated);
+        setError("");
+        // ⚠️ El campo se vacía SOLO si se guardó. Vaciarlo antes le borraba al
+        // admin la fecha que acababa de teclear cuando el guardado fallaba, y
+        // encima sin decirle que había fallado.
+        if (await saveDates(updated)) setNewDate("");
     }
 
     // ─── Premium slots ─────────────────────────────────────────────
-    async function saveSlots(updatedSlots: PremiumSlot[]) {
+    // Mismo hueco que `saveDates`, y por el mismo motivo: ver su comentario.
+    async function saveSlots(updatedSlots: PremiumSlot[]): Promise<boolean> {
         setSavingSlots(true); setSlotsSaved(false); setSlotsError("");
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push("/admin/login"); return; }
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/premium-slots`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ slots: updatedSlots }),
-        });
-        if (res.ok) { setSlots(updatedSlots); setSlotsSaved(true); setTimeout(() => setSlotsSaved(false), 2500); }
-        else setSlotsError("Error guardando los horarios.");
-        setSavingSlots(false);
+        if (!session) { router.push("/admin/login"); return false; }
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/premium-slots`, {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ slots: updatedSlots }),
+            });
+            if (res.ok) {
+                setSlots(updatedSlots); setSlotsSaved(true); setTimeout(() => setSlotsSaved(false), 2500);
+                return true;
+            }
+            setSlotsError("Error guardando los horarios.");
+            return false;
+        } catch {
+            setSlotsError("No se pudo conectar con el servidor. Los horarios NO se guardaron.");
+            return false;
+        } finally {
+            setSavingSlots(false);
+        }
     }
 
     function handleToggleSlot(index: number) {
         saveSlots(slots.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s));
     }
+    // Mismo motivo que `handleDelete`: escribe en producción y no hay deshacer.
     function handleDeleteSlot(index: number) {
+        const h = slots[index];
+        const ok = window.confirm(
+            `¿Quitar el horario ${h?.datetime_pt ?? ""} del grupo que empieza el ${h?.start_date ?? ""}?\n\n` +
+            "Si esa fecha se queda sin ningún horario, a quien compre Premium se le dirá " +
+            "que el equipo le contactará para coordinarlo."
+        );
+        if (!ok) return;
         saveSlots(slots.filter((_, i) => i !== index));
     }
-    function handleAddSlot() {
+    async function handleAddSlot() {
         if (!newSlotDt || !newSlotStartDate) return;
         const targetDate = dates.find(d => d.value === newSlotStartDate);
         if (!targetDate || !targetDate.enabled || targetDate.value < today) {
@@ -175,8 +258,15 @@ export default function FechasPage() {
             ...slots,
             { id: crypto.randomUUID(), datetime_pt: newSlotDt, start_date: newSlotStartDate, enabled: true },
         ].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.datetime_pt.localeCompare(b.datetime_pt));
-        setNewSlotDt(""); setNewSlotStartDate(""); setSlotsError("");
-        saveSlots(updated);
+        setSlotsError("");
+        /*
+          ⚠️ Los campos se vacían SOLO si se guardó, igual que en `handleAdd`. Esta
+          función se quedó atrás en el arreglo del 2026-09-06: vaciaba antes y sin
+          `await`, así que un fallo de red dejaba al admin leyendo "los horarios NO
+          se guardaron" sobre dos campos ya vacíos. Son las dos mitades del mismo
+          fallo y ahora se comportan igual.
+        */
+        if (await saveSlots(updated)) { setNewSlotDt(""); setNewSlotStartDate(""); }
     }
 
     // Fecha/hora actual en horario de California (PT), no en UTC, para que los
@@ -346,15 +436,33 @@ export default function FechasPage() {
                                 return (
                                     <li key={date.value} className={`px-4 sm:px-5 py-4 transition-colors hover:bg-gray-50/60 ${isPast ? "opacity-60" : ""}`}>
                                         {/* Cabecera: fecha + estados + eliminar */}
-                                        <div className="flex items-start justify-between gap-3">
+                                        {/*
+                                          ⚠️⚠️ **A 375 px el título tenía 32 px para un texto de 122.** Se leía
+                                          "3…" y era el 31 de agosto — indistinguible del 3 de agosto. Debajo
+                                          de esa cabecera están los chips que deciden QUÉ PLANES SE PUEDEN
+                                          COMPRAR para ese grupo, así que excluir Premium de la fecha
+                                          equivocada es cerrar la venta de una cohorte real.
+
+                                          La causa: el bloque de la derecha (dos interruptores + papelera) es
+                                          `shrink-0` y el título `truncate` dentro de un `min-w-0`, así que los
+                                          controles se quedaban con todo el ancho. Se apila en móvil y el
+                                          título deja de truncarse.
+                                        */}
+                                        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                             <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-semibold text-gray-800 truncate">{date.label}</p>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="text-sm font-semibold text-gray-800">{date.label}</p>
                                                     {isPast && (
                                                         <span className="shrink-0 text-[10px] font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-md">Pasada</span>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-gray-400 tabular-nums mt-0.5">{formatMMDDYYYY(date.value)}</p>
+                                                {/*
+                                                  ⚠️ Iba en MM/DD/YYYY: el 4 de mayo se leía "05/04/2026", que
+                                                  para un hispanohablante es el 5 de ABRIL. O sea que el
+                                                  respaldo del título truncado no solo era críptico — decía
+                                                  otra fecha. Se pinta el ISO, que no se puede malinterpretar.
+                                                */}
+                                                <p className="text-xs text-gray-400 tabular-nums mt-0.5">{date.value}</p>
                                             </div>
                                             <div className="flex items-center gap-3 sm:gap-5 shrink-0">
                                                 {renderToggle({

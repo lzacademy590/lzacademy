@@ -1,20 +1,62 @@
 "use client";
 
 import Image from "next/image";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PreguntasFrecuentes from "@/app/components/Questions";
 import { TestimonialsSection } from "@/app/components/Testimonials";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
+import {
+  usePlanesDelCatalogo,
+  precioEtiqueta,
+} from "@/app/hooks/usePlanesDelCatalogo";
 
-const plans = [
-  {
+// ─────────────────────────────────────────────────────────────────────────────
+// LAS CARDS SE DIBUJAN DEL CATÁLOGO, NO DE ESTA LISTA (2026-09-06)
+//
+// Antes esto era `const plans = [...]`: la lista de cuatro planes, con su precio
+// escrito a mano. Ahora la LISTA la manda `GET /config/plans` —que a su vez trae
+// nombre, precio y viñetas del admin de la plataforma— y esto se queda con lo
+// que el catálogo no puede saber: el ARTE y el copy de marketing de cada card.
+//
+// El objetivo: abrir un plan en el admin y que aparezca aquí sin tocar código.
+//
+// ⚠️ **El copy LOCAL gana sobre el del catálogo cuando existe**, y es deliberado:
+// aquí Premium tiene 9 viñetas y en el admin 3. Pisarlas con las del catálogo
+// sería empeorar la página que vende. El catálogo rellena lo que aquí no está —
+// que es justo el caso de un plan nuevo.
+//
+// ⚠️ **Un plan sin entrada aquí solo se enseña si viene de la PLATAFORMA**
+// (`soloEnPlataforma`). El legacy tiene un "Speaking" que nunca ha salido en esta
+// página —tiene su propio embudo— y hacerlo aparecer por reordenar el catálogo
+// sería una regresión silenciosa. La regla es: copy propio, o plan nuevo.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Presentacion {
+  id: string;
+  nombre: string;
+  subtitle?: string;
+  cardBg: string;
+  nameColor: string;
+  checkColor: string;
+  backBg: string;
+  btnColor: string;
+  popular: boolean;
+  badge: { text: string; bg: string; color: string } | null;
+  route: string;
+  muñeca: string;
+  features: string[];
+}
+
+/**
+ * Arte y copy por plan, indexado por la CLAVE del catálogo (no por el id de la
+ * card): es lo único que los dos lados comparten sin ambigüedad.
+ */
+const PRESENTACION: Record<string, Presentacion> = {
+  Essential: {
     id: "essential",
-    name: "Plan\nEssential",
+    nombre: "Plan\nEssential",
     subtitle: "Empieza con lo esencial para avanzar rápido:",
-    price: "$10",
-    priceUnit: "USD / mes",
-    billingNote: "Facturación automática cada 4 semanas",
     cardBg: "#fef0f0",
     nameColor: "#C0353E",
     checkColor: "#C0353E",
@@ -33,13 +75,10 @@ const plans = [
       "Reuniones de práctica los viernes",
     ],
   },
-  {
+  Premium: {
     id: "premium",
-    name: "Plan\nPremium",
+    nombre: "Plan\nPremium",
     subtitle: "Todo lo de Essential, más:",
-    price: "$50",
-    priceUnit: "USD / mes",
-    billingNote: "Facturación automática cada 4 semanas",
     cardBg: "#bf3d6d",
     nameColor: "#fff",
     checkColor: "#fff",
@@ -51,7 +90,7 @@ const plans = [
     muñeca: "/muñecapaso3premium.webp",
     features: [
       "Acceso completo al Método 590",
-      "1 hora de clase diaria (lunes a miércoles)",
+      "1 hora de clase diaria (lunes a jueves)",
       "Reuniones de práctica los viernes",
       "Explicación clara de teoría",
       "Práctica guiada en cada clase",
@@ -61,13 +100,10 @@ const plans = [
       "Estructura para lograr fluidez en menos tiempo",
     ],
   },
-  {
+  Personalizado: {
     id: "personalizada",
-    name: "Plan\nPersonalizado",
+    nombre: "Plan\nPersonalizado",
     subtitle: "Todo lo de Premium, más:",
-    price: "$120",
-    priceUnit: "USD / mes",
-    billingNote: "Pago único mensual · sin suscripción",
     cardBg: "#a02845",
     nameColor: "#fff",
     checkColor: "#fff",
@@ -88,13 +124,10 @@ const plans = [
       "Avanza a tu ritmo con guía personalizada",
     ],
   },
-  {
+  Fluidez: {
     id: "fluidez",
-    name: "Programa\nde Fluidez",
+    nombre: "Programa\nde Fluidez",
     subtitle: "Todo lo de Premium, más:",
-    price: "$200",
-    priceUnit: "USD / mes",
-    billingNote: "Pago único mensual · sin suscripción",
     cardBg: "#8a1f3d",
     nameColor: "#fff",
     checkColor: "#fde68a",
@@ -115,7 +148,73 @@ const plans = [
       "Enfoque 100% en romper la barrera de hablar",
     ],
   },
-];
+};
+
+/**
+ * Con qué se pinta un plan que todavía no tiene arte propio.
+ *
+ * ⚠️ **Se REUTILIZA la muñeca de Premium a propósito** (decisión de negocio del
+ * 2026-09-06: *"el arte no importa que se repita en estos momentos"*). Un plan
+ * recién abierto en el admin tiene que poder venderse el mismo día; esperar a que
+ * exista su ilustración es lo que convertiría esto en un cuello de botella.
+ *
+ * La paleta es la de Premium oscurecida, para que no compita con la card
+ * "Recomendado" siendo idéntica a ella.
+ */
+const PRESENTACION_POR_DEFECTO: Omit<Presentacion, "id" | "route"> = {
+  nombre: "",
+  subtitle: "Incluye:",
+  cardBg: "#9c2352",
+  nameColor: "#fff",
+  checkColor: "#fff",
+  backBg: "#7d1a41",
+  btnColor: "#7d1a41",
+  popular: false,
+  badge: null,
+  muñeca: "/muñecapaso3premium.webp",
+  features: [],
+};
+/**
+ * Orden y precios de RESPALDO, para cuando el catálogo todavía no ha llegado o
+ * no responde. Son los cuatro planes de siempre con su importe actual: una
+ * pantalla de precios en blanco no vende nada, y estos ya estaban escritos aquí.
+ *
+ * ⚠️ Es lo ÚNICO que queda escrito a mano del precio, y solo se ve durante el
+ * primer render. En cuanto el catálogo contesta manda él.
+ */
+const ORDEN_DE_RESPALDO = ["Essential", "Premium", "Personalizado", "Fluidez"];
+const PRECIO_DE_RESPALDO: Record<string, number> = {
+  Essential: 1000,
+  Premium: 5000,
+  Personalizado: 12000,
+  Fluidez: 20000,
+};
+/**
+ * Y su MODELO DE COBRO de respaldo.
+ *
+ * ⚠️ Hacía falta desde que la nota de cobro sale del catálogo: el respaldo
+ * declaraba `recurring: false` para los cuatro, así que con el catálogo caído
+ * Essential y Premium —que SÍ se renuevan— habrían anunciado "Pago único · sin
+ * renovación automática". Un precio de ayer es un mal menor aceptable; decirle a
+ * alguien que no se le va a cobrar otra vez cuando sí, no lo es.
+ */
+const RECURRENTE_DE_RESPALDO: Record<string, boolean> = {
+  Essential: true,
+  Premium: true,
+  Personalizado: false,
+  Fluidez: false,
+};
+
+/**
+ * Dónde se compra un plan que este sitio no sabe vender.
+ *
+ * ⚠️ Es una decisión de embudo, no un detalle: manda al comprador a la
+ * plataforma, que sí sabe cobrar cualquier plan de su tabla. La alternativa era
+ * no enseñar el plan, y entonces abrirlo en el admin no serviría de nada.
+ */
+const PLATAFORMA_URL =
+  process.env.NEXT_PUBLIC_PLATFORM_URL || "https://app.lainz590.com";
+
 
 function PasosTresContent() {
   const router = useRouter();
@@ -125,6 +224,91 @@ function PasosTresContent() {
   const [flipped, setFlipped] = useState<Record<string, boolean>>({});
   const [reducedMotion, setReducedMotion] = useState(false);
   const { isPlanAvailable, cuposLabel } = usePlanCupos();
+  /*
+    Las cards se DERIVAN del catálogo. Ver el bloque de `PRESENTACION` arriba:
+    la lista y el precio los manda el backend (y detrás, el admin de la
+    plataforma); el arte y el copy salen de aquí.
+  */
+  const catalogo = usePlanesDelCatalogo();
+
+  /*
+    Mientras el catálogo no ha llegado —o si no llega nunca— se pintan los planes
+    con copy propio, en el orden de siempre y con su precio de respaldo. Es lo que
+    evita que la pantalla de precios aparezca vacía por un fallo de red.
+  */
+  const plans = useMemo(() => {
+    const filas =
+      catalogo ??
+      ORDEN_DE_RESPALDO.map((key) => ({
+        key,
+        label: key,
+        priceCents: PRECIO_DE_RESPALDO[key],
+        recurring: RECURRENTE_DE_RESPALDO[key] === true,
+        soloEnPlataforma: false,
+        origenPlataforma: false,
+        features: [] as string[],
+      }));
+
+    return filas
+      /*
+        Copy propio, o plan que vino de la plataforma. Ver el ⚠️ de `PRESENTACION`:
+        el "Speaking" del legacy nunca ha salido en esta página y no debe empezar
+        a salir por haber reordenado el catálogo.
+
+        ⚠️⚠️ Aquí se filtraba por `soloEnPlataforma`, y eso hacía DESAPARECER la
+        card justo cuando el plan empezaba a poder comprarse: desde el 2026-09-06
+        el legacy ADOPTA los planes que llegan completos, y un plan adoptado ya no
+        es "solo de la plataforma". La pregunta para PINTAR es de dónde VINO, no
+        dónde se cobra.
+      */
+      .filter((f) => PRESENTACION[f.key] || f.origenPlataforma)
+      .map((f) => {
+        const arte = PRESENTACION[f.key];
+        const base = arte ?? {
+          ...PRESENTACION_POR_DEFECTO,
+          id: f.key.toLowerCase(),
+          /*
+            Un plan sin copy propio va a su LANDING GENÉRICA (`/plan/<clave>`),
+            que la arma con el catálogo: misma maqueta que las cuatro escritas a
+            mano, con el contenido del admin.
+
+            ⚠️ Antes esto mandaba a `/pricing` de la plataforma, porque este sitio
+            no sabía ni cobrarlo ni pintarlo. Las dos cosas se cerraron el
+            2026-09-06; el respaldo a la plataforma sigue abajo, para el plan que
+            este backend NO sabe cobrar.
+          */
+          route: f.soloEnPlataforma
+            ? `${PLATAFORMA_URL}/pricing?plan=${encodeURIComponent(f.key)}`
+            : `/plan/${f.key.toLowerCase()}`,
+        };
+        return {
+          ...base,
+          // El nombre sale del catálogo cuando no hay copy propio: es lo que el
+          // admin tecleó, y el salto de línea de los nombres de siempre no se
+          // puede inventar para un plan nuevo.
+          name: arte ? arte.nombre : f.label,
+          price: precioEtiqueta(f.priceCents),
+          priceUnit: "USD / 28 días",
+          /*
+            ⚠️ **La nota de cobro sale del DATO, no del copy local.** Aquí ganaba
+            un `billingNote` escrito por plan aquí abajo, así que si el admin
+            cambiaba un plan de suscripción a pago único, esta card seguía diciendo
+            "Facturación automática cada 4 semanas". Es un dato del catálogo desde
+            que el modelo de cobro se edita en el panel, y un texto que contradice
+            al cobro es de lo peor que puede haber en una página de precios.
+
+            El copy local sigue mandando en lo que ES copy —viñetas, nombre, arte—;
+            esto no lo era.
+          */
+          billingNote: f.recurring
+            ? "Facturación automática cada 4 semanas"
+            : "Pago único · sin renovación automática",
+          // El copy local gana; el del admin rellena al plan que no lo tiene.
+          features: base.features.length ? base.features : f.features,
+          externo: !arte,
+        };
+      });
+  }, [catalogo]);
 
   const visiblePlans = plans.filter((p) => p.id !== "fluidez" || isPlanAvailable("Fluidez"));
 
