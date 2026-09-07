@@ -303,8 +303,25 @@ function PasosTresContent() {
           billingNote: f.recurring
             ? "Facturación automática cada 4 semanas"
             : "Pago único · sin renovación automática",
-          // El copy local gana; el del admin rellena al plan que no lo tiene.
-          features: base.features.length ? base.features : f.features,
+          /*
+            ⚠️⚠️ **Manda el CATÁLOGO; el copy local rellena al plan que no lo trae.**
+            Estaba al revés, y era una decisión mía equivocada: la razoné como "no
+            empeorar la página que vende" y el efecto era que el admin editaba las
+            viñetas de un plan y **el website no se enteraba**. Medido en producción,
+            Essential tenía 6 viñetas aquí y 3 en la plataforma, **sin una sola en
+            común**; lo mismo Premium (9 contra 3). El mismo plan descrito con
+            palabras distintas en las dos pantallas que lo venden.
+
+            El negocio pidió una sola fuente —el panel— y esto es lo que la hace
+            valer. El formato ya era compatible: los dos son `string[]` y el legacy
+            venía sirviendo las de la plataforma desde antes.
+
+            ⚠️ **Dependencia de despliegue**: las viñetas ricas de `PRESENTACION` se
+            copiaron a Admin › Planes ANTES de invertir esto. Si se despliega con el
+            panel sin enriquecer, las cards caen a 3 viñetas — el catálogo no está
+            vacío, así que el respaldo local no se activa.
+          */
+          features: f.features.length ? f.features : base.features,
           externo: !arte,
         };
       });
