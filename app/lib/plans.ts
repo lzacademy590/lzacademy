@@ -218,6 +218,142 @@ export const DEFAULT_LEVEL_AVAILABILITY: Record<
 );
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EL CHECKOUT LO MANDA EL CATÁLOGO, EL ARTE SE QUEDA AQUÍ (2026-09-06)
+//
+// `PLAN_LIST` sigue siendo la fuente de PRESENTACIÓN —color, chip, muñeca,
+// tagline, viñetas—, pero ya no decide QUÉ PLANES existen ni cuánto cuestan. Eso
+// lo dice `GET /config/plans`, que a su vez lo lee del admin de la plataforma.
+//
+// El motivo es que un plan abierto en el admin ya se puede COBRAR desde este
+// backend (ver el CLAUDE.md, «El legacy ADOPTA los planes de la plataforma») y
+// aun así no aparecía en el formulario de `/pago-estudiantes`: su selector se
+// construía con `CHECKOUT_PLAN_KEYS`, una lista estática. La API lo aceptaba y la
+// pantalla no lo ofrecía.
+//
+// ⚠️ **El arte NO se inventa.** Un plan sin ficha local sale con
+// `PRESENTACION_NEUTRA` (gris) y con las viñetas que el admin escribió. Se ve más
+// sobrio que los cuatro de siempre, y es lo correcto: mejor un plan vendible sin
+// ilustración que un plan invisible.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que un checkout necesita saber de un plan para poder venderlo.
+ *
+ * ⚠️ **La COHORTE no está aquí a propósito.** Esa pregunta ya la contesta
+ * `usePlanCohorte`, que lee el mismo `/config/plans` y ya funciona con un plan
+ * nuevo. Repetirla aquí serían dos nombres para el mismo hecho — la enfermedad
+ * que este repo lleva media docena de secciones documentando.
+ */
+export interface PlanDeCheckout {
+  key: string;
+  label: string;
+  /**
+   * El nombre que se PINTA en el selector del checkout.
+   *
+   * ⚠️⚠️ **No es `label` sin más, y la diferencia es una pantalla de pago.** El
+   * selector llevaba toda la vida enseñando la CLAVE, y para "Fluidez" la clave y
+   * la etiqueta no coinciden: pasar a `label` habría renombrado ese plan a
+   * "Programa de Fluidez" a la vista del comprador, sin que nadie lo pidiera. Se
+   * detectó en el navegador, no compilando.
+   *
+   * Así que para un plan con ficha local se conserva lo de siempre (la clave) y
+   * para uno nuevo se usa la etiqueta del admin — porque su clave es un
+   * identificador en mayúsculas ("INTENSIVO") y no un nombre.
+   */
+  nombreEnCheckout: string;
+  priceCents: number;
+  recurring: boolean;
+  /** Acepta códigos de descuento. */
+  discountable: boolean;
+  tagline: string;
+  features: string[];
+  /** No tiene ficha local: se pinta con el arte neutro. */
+  sinFichaLocal: boolean;
+}
+
+/** Arte de respaldo para un plan que el catálogo trae y este front no conoce. */
+const PRESENTACION_NEUTRA = {
+  adminColor: "bg-gray-400",
+  badgeClass: "bg-gray-100 text-gray-700",
+};
+
+export function planColorDe(key: string): string {
+  return PLAN_MAP[key]?.adminColor ?? PRESENTACION_NEUTRA.adminColor;
+}
+export function planBadgeClassDe(key: string): string {
+  return PLAN_MAP[key]?.badgeClass ?? PRESENTACION_NEUTRA.badgeClass;
+}
+
+/**
+ * Los planes que se pueden comprar en el checkout de este website.
+ *
+ * ⚠️ **`catalogo === null` NO significa "no hay planes": significa "todavía no
+ * sé"**, y ahí se devuelve la lista LOCAL de siempre. Es el mismo fail-open del
+ * resto del sitio: mientras el catálogo viaja —o si nunca llega— el formulario
+ * sigue vendiendo los cuatro de toda la vida en vez de quedarse en blanco.
+ *
+ * ⚠️ **`discountable` se DERIVA de `recurring`, no se copia de una lista.** El
+ * backend rechaza descuentos en planes de suscripción
+ * (`discount.service.js` → `DISCOUNTS_FOR_SUBSCRIPTIONS = false`), así que
+ * ofrecer la caja de código a un plan recurrente es prometer algo que el servidor
+ * va a rechazar. Con `DISCOUNTABLE_PLANS` —una lista estática— un plan nuevo no
+ * podía usar descuentos aunque fuera de pago único.
+ */
+export function planesDeCheckout(
+  catalogo: Array<{
+    key: string;
+    label: string;
+    priceCents: number;
+    recurring: boolean;
+    studentCheckout: boolean;
+    features: string[];
+  }> | null,
+): PlanDeCheckout[] {
+  if (!catalogo) {
+    return PLAN_LIST.filter((p) => p.checkout).map((p) => ({
+      key: p.key,
+      label: p.label,
+      nombreEnCheckout: p.key,
+      priceCents: p.priceCents,
+      recurring: p.recurring,
+      discountable: !p.recurring,
+      tagline: p.checkoutTagline ?? "",
+      features: p.checkoutFeatures ?? [],
+      sinFichaLocal: false,
+    }));
+  }
+
+  return catalogo
+    .filter((p) => p.studentCheckout)
+    .map((p) => {
+      const local = PLAN_MAP[p.key];
+      return {
+        key: p.key,
+        label: local?.label ?? p.label,
+        nombreEnCheckout: local ? local.key : p.label,
+        // El PRECIO sale siempre del catálogo, también para los planes que sí
+        // tienen ficha local: es el que el backend va a cobrar.
+        priceCents: p.priceCents,
+        recurring: p.recurring,
+        discountable: !p.recurring,
+        tagline: local?.checkoutTagline ?? "",
+        // El copy local gana; las viñetas del admin rellenan al plan que no lo
+        // tiene, igual que en las cards de /paso-tres.
+        features: local?.checkoutFeatures?.length
+          ? local.checkoutFeatures
+          : p.features,
+        sinFichaLocal: !local,
+      };
+    });
+}
+
+/** "Incluye: a · b · c" — la descripción del producto que se manda a Stripe. */
+export function descripcionDeCheckout(plan: PlanDeCheckout | undefined): string {
+  const f = plan?.features ?? [];
+  return f.length ? `Incluye: ${f.join(" · ")}` : "";
+}
+
 export function getPlan(key: string): PlanDef | undefined {
   return PLAN_MAP[key];
 }
@@ -232,6 +368,12 @@ export function isSubscriptionPlan(key: string): boolean {
 export function requiresScheduling(key: string): boolean {
   return !!PLAN_MAP[key]?.requiresScheduling;
 }
+/**
+ * @deprecated Lo sustituye `planesDeCheckout()`, que deriva esto de `recurring`
+ * en vez de leer una lista estática — así un plan abierto en el admin también
+ * puede llevar descuento. Se conserva sin usar, como el resto de lo superado en
+ * este repo, por si alguna pantalla vieja lo necesita.
+ */
 export function isDiscountablePlan(key: string): boolean {
   return DISCOUNTABLE_PLANS.includes(key as PlanKey);
 }
@@ -247,6 +389,10 @@ export function planLabel(key: string): string {
   return PLAN_MAP[key]?.label ?? key;
 }
 // Tagline y bullets del plan para el resumen del checkout.
+//
+// @deprecated Los usa `planesDeCheckout()` a través de `PLAN_MAP`; las pantallas
+// leen ya el plan resuelto, que rellena con las viñetas del admin cuando no hay
+// copy local. Se conservan sin montar.
 export function checkoutTagline(key: string): string {
   return PLAN_MAP[key]?.checkoutTagline ?? "";
 }

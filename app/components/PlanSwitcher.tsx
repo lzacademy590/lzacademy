@@ -2,19 +2,33 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { planPriceDisplay } from "@/app/lib/plans";
+import { useMemo } from "react";
+import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
+import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 
-// id/label/route son específicos de esta navegación; el precio sale del catálogo único.
-const allPlans = [
-  { id: "essential",    label: "Essential",    price: `${planPriceDisplay("Essential")}/mes`,     route: "/essential" },
-  { id: "premium",      label: "Premium",      price: `${planPriceDisplay("Premium")}/mes`,       route: "/premium" },
-  { id: "personalizada",label: "Personalizado", price: `${planPriceDisplay("Personalizado")}/mes`, route: "/personalizado" },
-  { id: "fluidez",      label: "Programa de Fluidez", price: `${planPriceDisplay("Fluidez")}`,     route: "/fluidez" },
-];
+/*
+  Las cuatro landings escritas a mano, con su id y su ruta.
+
+  ⚠️ **El id NO es la clave en minúsculas**: Personalizado usa "personalizada"
+  —con 'a'— y así lo pasan sus páginas. Derivarlo de la clave rompería el filtro
+  que esconde el plan en el que ya estás.
+*/
+const LANDINGS_PROPIAS: Record<string, { id: string; route: string; label: string }> = {
+  Essential:     { id: "essential",     route: "/essential",     label: "Essential" },
+  Premium:       { id: "premium",       route: "/premium",       label: "Premium" },
+  Personalizado: { id: "personalizada", route: "/personalizado", label: "Personalizado" },
+  Fluidez:       { id: "fluidez",       route: "/fluidez",       label: "Programa de Fluidez" },
+};
 
 interface Props {
-  currentPlan: "essential" | "premium" | "personalizada" | "fluidez";
+  /**
+   * El id del plan en el que estamos, para esconderlo de la lista.
+   *
+   * ⚠️ Era una unión de los cuatro. Desde que un plan puede abrirse en el admin
+   * y tener su propia landing (`/plan/<clave>`), es una cadena.
+   */
+  currentPlan: string;
   nivel: string;
 }
 
@@ -23,6 +37,29 @@ export default function PlanSwitcher({ currentPlan, nivel }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { isPlanAvailable } = usePlanCupos();
+  const catalogo = usePlanesDelCatalogo();
+
+  /*
+    ⚠️ **La lista sale del CATÁLOGO, no de una constante.** Un plan abierto en el
+    admin tiene ahora su landing (`/plan/<clave>`) y tiene que poder alcanzarse
+    desde aquí: si no, existe pero no se llega a él desde ninguna otra página.
+
+    Mientras el catálogo viaja, `planesDeCheckout(null)` devuelve los cuatro de
+    siempre, así que el conmutador nunca se queda vacío.
+  */
+  const allPlans = useMemo(
+    () =>
+      planesDeCheckout(catalogo).map((p) => {
+        const propia = LANDINGS_PROPIAS[p.key];
+        return {
+          id: propia?.id ?? p.key.toLowerCase(),
+          label: propia?.label ?? p.label,
+          price: precioEtiqueta(p.priceCents),
+          route: propia?.route ?? `/plan/${p.key.toLowerCase()}`,
+        };
+      }),
+    [catalogo],
+  );
 
   // Oculta Fluidez del switcher si se agotaron los cupos; el resto no maneja cupos.
   const otherPlans = allPlans.filter(

@@ -1,17 +1,30 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import PaymentForm from "@/app/components/Form";
+import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { CHECKOUT_PLAN_KEYS, PLAN_MAP } from "@/app/lib/plans";
 
-type PlanType = "Essential" | "Premium" | "Personalizado" | "Fluidez";
+/*
+  ⚠️ Era una unión de cuatro literales. Desde el 2026-09-06 el catálogo puede
+  traer planes que este front no conoce —los que se abren en el admin de la
+  plataforma— así que la clave es una cadena. Lo que NO se ensancha es el arte:
+  ver `MUÑECA_POR_DEFECTO`.
+*/
+type PlanType = string;
 
-// URL param (en minúsculas) → key del plan, derivado del catálogo (planes de checkout).
+// URL param (en minúsculas) → key del plan.
+//
+// ⚠️ Se construye con la lista LOCAL a propósito, aunque el checkout ya sea
+// dinámico: esto resuelve un enlace del embudo (`/paso-cuatro?plan=premium`) y
+// esos enlaces son los de las landings, que solo existen para los planes con
+// ficha. Un plan que no case cae a Essential —el comportamiento de siempre— y el
+// alumno puede cambiarlo en el propio selector, que sí trae el catálogo entero.
 const planMap: Record<string, PlanType> = Object.fromEntries(
   CHECKOUT_PLAN_KEYS.map((k) => [k.toLowerCase(), k])
-) as Record<string, PlanType>;
+);
 
 // Fusión B2: "B2" es el código que emite /paso-uno desde el 2026-08-24.
 //
@@ -32,10 +45,26 @@ const nivelMap: Record<string, string> = {
   "?":    "",
 };
 
-// Imagen del personaje por plan, derivada del catálogo.
+/*
+  Imagen del personaje por plan.
+
+  ⚠️⚠️ **`next/image` LANZA si `src` es undefined**, así que este mapa no puede
+  devolver un hueco. Antes leía `PLAN_MAP[k].character` sin `?.` y solo se
+  sostenía porque la lista era estática; desde que el selector del formulario trae
+  el catálogo entero, elegir un plan sin ficha llamaría a `setActivePlan` con una
+  clave que este mapa no tiene y **la página entera reventaría** — no el formulario:
+  la página.
+
+  El respaldo reutiliza la muñeca de Premium, la misma decisión que se tomó para
+  las cards de `/paso-tres`: un plan nuevo tiene que poder venderse el mismo día,
+  y esperar a su ilustración es lo que convertiría esto en un cuello de botella.
+*/
+const MUÑECA_POR_DEFECTO = "/muñeca-premium.webp";
 const planCharacter: Record<string, string> = Object.fromEntries(
-  CHECKOUT_PLAN_KEYS.map((k) => [k, PLAN_MAP[k].character ?? ""])
+  CHECKOUT_PLAN_KEYS.map((k) => [k, PLAN_MAP[k]?.character ?? MUÑECA_POR_DEFECTO])
 );
+const muñecaDe = (plan: string): string =>
+  planCharacter[plan] ?? MUÑECA_POR_DEFECTO;
 
 function PasoCuatroContent() {
   const searchParams = useSearchParams();
@@ -43,10 +72,31 @@ function PasoCuatroContent() {
   const nivelParam      = searchParams.get("nivel")       ?? "";
   const dificultades    = searchParams.get("dificultades") ?? "";
 
-  const initialPlan: PlanType = planMap[planParam.toLowerCase()] ?? "Essential";
+  /*
+    ⚠️ El plan del enlace se resuelve contra el CATÁLOGO cuando el mapa local no
+    lo conoce. Sin esto, `/paso-cuatro?plan=intensivo` —el enlace que emite la
+    landing de un plan nuevo— caía a Essential: el alumno pulsaba "Comenzar" en
+    un plan y aterrizaba en otro, con otro precio.
+  */
+  const catalogoDelEmbudo = usePlanesDelCatalogo();
+  const delCatalogo = catalogoDelEmbudo?.find(
+    (p) => p.studentCheckout && p.key.toLowerCase() === planParam.toLowerCase(),
+  )?.key;
+  const initialPlan: PlanType =
+    planMap[planParam.toLowerCase()] ?? delCatalogo ?? "Essential";
   const nivel: string = nivelMap[nivelParam] ?? "";
 
   const [activePlan, setActivePlan] = useState<PlanType>(initialPlan);
+
+  /*
+    El catálogo llega DESPUÉS del primer render, así que `initialPlan` puede
+    cambiar de "Essential" al plan de verdad. `Form` ya sigue ese cambio con su
+    propio efecto; la MUÑECA no, y se quedaba enseñando la de Essential sobre un
+    formulario que ya decía otro plan.
+  */
+  useEffect(() => {
+    setActivePlan(initialPlan);
+  }, [initialPlan]);
 
   return (
     <main
@@ -68,7 +118,7 @@ function PasoCuatroContent() {
           <div className="flex items-center justify-center order-2 lg:order-1 pb-6 lg:pb-0">
             <Image
               key={activePlan}
-              src={planCharacter[activePlan]}
+              src={muñecaDe(activePlan)}
               alt={`Muñeca ${activePlan}`}
               width={582}
               height={568}

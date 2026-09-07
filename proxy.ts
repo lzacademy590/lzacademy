@@ -54,6 +54,24 @@ export default function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  /*
+    La landing de un plan abierto en el admin (`/plan/<clave>`) es DINÁMICA, así
+    que no puede estar en `VALID_ROUTES`: su clave no se conoce al desplegar.
+
+    ⚠️⚠️ **Esta lista es una LISTA BLANCA, y por eso una ruta nueva muere en
+    silencio si nadie la añade**: no da 404 —que se vería— sino un 307 a la
+    portada, que parece que el enlace "no hace nada". Medido: la landing
+    respondía 307 y el navegador acababa en `/` sin ningún error.
+
+    Se comprueba la FORMA de la clave (un solo segmento, sin barras) y no que el
+    plan exista: de eso se encarga la página, que sabe distinguir "todavía no
+    cargó el catálogo" de "ese plan ya no está disponible". El middleware no
+    puede consultar el catálogo sin pagar una llamada en cada navegación.
+  */
+  if (/^\/plan\/[A-Za-z0-9_-]+$/.test(pathname)) {
+    return NextResponse.next();
+  }
+
   if (!VALID_ROUTES.has(pathname)) {
     return NextResponse.redirect(new URL("/", request.url), 307);
   }
