@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
-import { CHECKOUT_PLAN_KEYS, planPriceDisplay, isSubscriptionPlan, isDiscountablePlan, checkoutDescription } from "@/app/lib/plans";
+import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
+import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 
 interface StudentData {
   full_name: string;
@@ -68,6 +69,14 @@ export default function PagoEstudiantesPage() {
 
   const { isLevelAvailable } = useLevelAvailability();
   const { requiresCohort, loading: cohorteLoading } = usePlanCohorte();
+  /*
+    ⚠️ **La lista de planes sale del CATÁLOGO, no de una constante.** Con
+    `CHECKOUT_PLAN_KEYS` un plan abierto en el admin no aparecía aquí aunque el
+    backend ya supiera cobrarlo: la API lo aceptaba y el formulario no lo ofrecía.
+    Mientras el catálogo viaja, `planesDeCheckout(null)` devuelve los de siempre.
+  */
+  const catalogo = usePlanesDelCatalogo();
+  const planesCheckout = useMemo(() => planesDeCheckout(catalogo), [catalogo]);
   const [plan, setPlan] = useState("Essential");
   const [level, setLevel] = useState("");
   const [interestDate, setInterestDate] = useState("");
@@ -78,7 +87,9 @@ export default function PagoEstudiantesPage() {
   // Essential empieza el mismo día del pago: no elige fecha ni la envía.
   const needsCohorte = requiresCohort(plan);
 
-  // Código de descuento (solo para planes elegibles; ver DISCOUNTABLE_PLANS abajo).
+  // Código de descuento (solo para planes elegibles). Quién lo es sale de
+  // `planesDeCheckout`, que lo DERIVA de `recurring`: el backend rechaza
+  // descuentos en suscripciones (`DISCOUNTS_FOR_SUBSCRIPTIONS = false`).
   const [discountCode, setDiscountCode] = useState("");
   const [validatingDiscount, setValidatingDiscount] = useState(false);
   const [discountError, setDiscountError] = useState("");
@@ -171,7 +182,7 @@ export default function PagoEstudiantesPage() {
           interestDateLabel: needsCohorte
             ? (futureDates.find((d) => d.value === interestDate)?.label ?? "")
             : "",
-          description: checkoutDescription(plan),
+          description: descripcionDeCheckout(planActual),
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
@@ -311,13 +322,20 @@ export default function PagoEstudiantesPage() {
     .filter((d) => !(d.excludedPlansSpecial ?? []).includes(plan));
 
   // Suscripción recurrente y elegibilidad de descuentos según el catálogo único.
-  const isSubscription = isSubscriptionPlan(plan);
-  const showDiscount = isDiscountablePlan(plan);
+  const planActual = planesCheckout.find((p) => p.key === plan);
+  const isSubscription = planActual?.recurring ?? false;
+  const showDiscount = planActual?.discountable ?? false;
   const formatPrice = (cents: number) => {
     const v = cents / 100;
-    return `$${Number.isInteger(v) ? v : v.toFixed(2)}`;
+    return `${Number.isInteger(v) ? v : v.toFixed(2)}`;
   };
-  const displayPrice = appliedDiscount ? formatPrice(appliedDiscount.discountedAmount) : planPriceDisplay(plan);
+  /*
+    ⚠️ Sin plan resuelto se pinta cadena vacía, NO "$0": mientras el catálogo
+    viaja hay un instante sin `planActual`, y un cero en el precio de un checkout
+    se lee como gratis. El hueco se lee como "cargando", que es la verdad.
+  */
+  const precioDelPlan = planActual ? precioEtiqueta(planActual.priceCents) : "";
+  const displayPrice = appliedDiscount ? formatPrice(appliedDiscount.discountedAmount) : precioDelPlan;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-12">
@@ -396,8 +414,8 @@ export default function PagoEstudiantesPage() {
                   }}
                   className={selectClass}
                 >
-                  {CHECKOUT_PLAN_KEYS.map((k) => (
-                    <option key={k} value={k}>{`${k} — ${planPriceDisplay(k)}`}</option>
+                  {planesCheckout.map((op) => (
+                    <option key={op.key} value={op.key}>{`${op.nombreEnCheckout} — ${precioEtiqueta(op.priceCents)}`}</option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
@@ -545,7 +563,7 @@ export default function PagoEstudiantesPage() {
               <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                 <p className="text-xs leading-relaxed text-zinc-500">
                   <span className="font-semibold text-zinc-700">Suscripción:</span>{" "}
-                  se te cobrará {planPriceDisplay(plan)} cada 4 semanas de forma automática hasta que canceles.
+                  se te cobrará {precioDelPlan} cada 4 semanas de forma automática hasta que canceles.
                   Cancela cuando quieras escribiendo a{" "}
                   <a href="mailto:info@lz-englishacademy.com" className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">info@lz-englishacademy.com</a>;
                   conservas acceso hasta el final del periodo ya pagado.
@@ -595,7 +613,7 @@ export default function PagoEstudiantesPage() {
                   Ir al pago seguro —{" "}
                   {appliedDiscount ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="line-through opacity-60">{planPriceDisplay(plan)}</span>
+                      <span className="line-through opacity-60">{precioDelPlan}</span>
                       <span>{displayPrice}</span>
                     </span>
                   ) : (

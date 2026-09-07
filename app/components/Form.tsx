@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStartDates } from "../hooks/useStartDates";
 import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
-import { CHECKOUT_PLAN_KEYS, planPriceDisplay, isSubscriptionPlan, requiresScheduling, checkoutTagline, checkoutFeatures, checkoutDescription } from "@/app/lib/plans";
+import { requiresScheduling, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
+import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 
 interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
 
@@ -50,7 +51,13 @@ function buildSlotDisplay(datetimePt: string) {
 }
 
 // El resumen del plan (tagline + features) vive en el catálogo único (app/lib/plans.ts).
-type PlanType = "Essential" | "Premium" | "Personalizado" | "Fluidez";
+/*
+  ⚠️ Era una unión de cuatro literales. El selector se construye ahora con el
+  CATÁLOGO, que puede traer planes abiertos en el admin de la plataforma, así que
+  la clave es una cadena. Los `as PlanType` que había repartidos por el archivo
+  ya venían coercionando `string`: lo que cambia es que ahora es honesto.
+*/
+type PlanType = string;
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
@@ -127,8 +134,24 @@ const PaymentForm = ({
         ?? allDates.find(d => d.value === formData.interestDate)?.label
         ?? "";
 
+    /*
+      ⚠️ **La lista de planes sale del CATÁLOGO, no de una constante.** Con
+      `CHECKOUT_PLAN_KEYS` un plan abierto en el admin no aparecía en este
+      selector aunque el backend ya supiera cobrarlo. Mientras el catálogo viaja,
+      `planesDeCheckout(null)` devuelve los cuatro de siempre.
+    */
+    const catalogo = usePlanesDelCatalogo();
+    const planesCheckout = useMemo(() => planesDeCheckout(catalogo), [catalogo]);
+    const planActual = planesCheckout.find((p) => p.key === plan);
+
     // Suscripción recurrente (cobro automático cada 4 semanas) según el catálogo.
-    const isSubscription = isSubscriptionPlan(plan);
+    const isSubscription = planActual?.recurring ?? false;
+    /*
+      ⚠️ Sin plan resuelto se pinta cadena vacía, NO "$0": hay un instante en que
+      el catálogo aún no llegó, y un cero en el precio de un checkout se lee como
+      gratis. El hueco se lee como "cargando", que es la verdad.
+    */
+    const precioDelPlan = planActual ? precioEtiqueta(planActual.priceCents) : "";
 
     useEffect(() => { setPlan(selectedPlan); }, [selectedPlan]);
 
@@ -283,7 +306,7 @@ const PaymentForm = ({
                     level: formData.englishLevel,
                     interestDate: formData.interestDate,
                     interestDateLabel: selectedDateLabel,
-                    description: checkoutDescription(plan),
+                    description: descripcionDeCheckout(planActual),
                     motive: selectedDificultades || "no especificado",
                 }),
             });
@@ -325,9 +348,17 @@ const PaymentForm = ({
                     </p>
                     {embedded && (
                         <div className="mt-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold" style={{ backgroundColor: "#fadadd", color: "#C0353E" }}>
-                            <span>Plan {plan}</span>
+                            {/*
+                                ⚠️ El NOMBRE comercial, no la clave. Con los cinco de
+                                siempre no se distinguía —la clave de Essential ES
+                                "Essential"— pero un plan abierto desde el admin llegaba
+                                al momento del pago como "Plan UXADM_B". El botón de
+                                abajo ya usaba `nombreEnCheckout`; este chip se quedó
+                                con la clave.
+                            */}
+                            <span>{planActual?.nombreEnCheckout ?? plan}</span>
                             <span className="opacity-50">·</span>
-                            <span>{planPriceDisplay(plan)}</span>
+                            <span>{precioDelPlan}</span>
                         </div>
                     )}
                     {embedded && isSubscription && (
@@ -347,10 +378,10 @@ const PaymentForm = ({
                 <div className="mb-5 rounded-2xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
                     <div className="px-5 py-3 bg-zinc-50 border-b border-zinc-100">
                         <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">Tu Plan {plan} incluye</p>
-                        <p className="text-[13px] text-zinc-600 mt-0.5">{checkoutTagline(plan)}</p>
+                        <p className="text-[13px] text-zinc-600 mt-0.5">{planActual?.tagline ?? ""}</p>
                     </div>
                     <ul className="px-5 py-4 space-y-2.5">
-                        {checkoutFeatures(plan).map((feat) => (
+                        {(planActual?.features ?? []).map((feat) => (
                             <li key={feat} className="flex items-start gap-2.5">
                                 <span className="mt-0.5 shrink-0 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100">
                                     <svg className="h-2.5 w-2.5 text-emerald-600" viewBox="0 0 10 10" fill="none">
@@ -524,8 +555,8 @@ const PaymentForm = ({
                                         className={selectClass}
                                         required
                                     >
-                                        {CHECKOUT_PLAN_KEYS.map((k) => (
-                                            <option key={k} value={k}>{`${k} — ${planPriceDisplay(k)}`}</option>
+                                        {planesCheckout.map((op) => (
+                                            <option key={op.key} value={op.key}>{`${op.nombreEnCheckout} — ${precioEtiqueta(op.priceCents)}`}</option>
                                         ))}
                                     </select>
                                     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
@@ -748,7 +779,7 @@ const PaymentForm = ({
                                 </>
                             ) : (
                                 <>
-                                    {`Comenzar ${plan} — ${planPriceDisplay(plan)}`}
+                                    {`Comenzar ${planActual?.nombreEnCheckout ?? plan} — ${precioDelPlan}`}
                                     <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
                                         <path stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>

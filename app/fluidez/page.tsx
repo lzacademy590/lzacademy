@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
+import PrecioDelPlan from "@/app/components/PrecioDelPlan";
 
 const features = [
       "1 Sesión de coaching enfocado en speaking 1:1 semanal",
@@ -83,11 +84,14 @@ function FluidezPlanContent() {
 
                   <div className="flex flex-col justify-center px-6 py-8 sm:w-[220px] lg:w-[250px] shrink-0">
                     <p className="text-2xl lg:text-3xl font-extrabold text-zinc-800 mb-1">Fluidez</p>
-                    <div className="flex items-baseline gap-1 mb-1" style={{ color: ACCENT }}>
-                      <span className="text-4xl lg:text-5xl font-extrabold leading-none">$200</span>
-                      <span className="text-xs lg:text-sm font-bold"> USD / mes</span>
-                    </div>
-                    <p className="text-[11px] lg:text-[12px] font-semibold text-zinc-400 mb-3">Pago único mensual · sin suscripción · cupos limitados</p>
+                    <PrecioDelPlan
+                      clave="Fluidez"
+                      centavosDeRespaldo={20000}
+                      recurrenteDeRespaldo={false}
+                      color={ACCENT}
+                      notaExtra="cupos limitados"
+                      claseNota="text-[11px] lg:text-[12px] font-semibold text-zinc-400 mb-3"
+                    />
                     <p className="text-[12px] lg:text-[13px] text-zinc-500 font-medium leading-relaxed">
                       Para quienes ya entienden inglés (A2+) pero se traban al hablar. Rompé la barrera con coaching de speaking 1:1.
                     </p>

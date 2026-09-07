@@ -5,7 +5,8 @@ import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { ErrorState } from "../_utils/ErrorState";
-import { DISCOUNT_PLAN_OPTIONS, planLabel, isSubscriptionPlan, type DiscountPlan } from "@/app/lib/plans";
+import { planesDeCheckout, planLabel, isSubscriptionPlan, type DiscountPlan } from "@/app/lib/plans";
+import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 
 interface DiscountCode {
     code: string;
@@ -25,16 +26,25 @@ interface Row extends DiscountCode {
     _editing: boolean;
 }
 
-// Opciones de plan para un código (catálogo único + "all").
+// Opciones de plan para un código (catálogo + "all").
+//
+// ⚠️ **Se derivan del CATÁLOGO y por eso ya no son constantes de módulo.** Con
+// `DISCOUNT_PLAN_OPTIONS` —una lista estática— un plan abierto en el admin de la
+// plataforma no aparecía en este desplegable, así que **no se le podía crear un
+// código de descuento** aunque fuese de pago único y el backend lo aceptara. Es
+// el mismo hueco que tenía el panel de fechas.
 const planOptionLabel = (p: DiscountPlan) => (p === "all" ? "Todos los planes" : planLabel(p));
-const PLAN_OPTIONS: { value: DiscountPlan; label: string }[] = DISCOUNT_PLAN_OPTIONS.map((p) => ({
-    value: p,
-    label: planOptionLabel(p),
-}));
 
-const PLAN_LABEL: Record<string, string> = Object.fromEntries(
-    DISCOUNT_PLAN_OPTIONS.map((p) => [p, planOptionLabel(p)])
-);
+function opcionesDePlan(catalogo: ReturnType<typeof usePlanesDelCatalogo>) {
+    const claves: DiscountPlan[] = [
+        "all",
+        ...planesDeCheckout(catalogo).map((x) => x.key as DiscountPlan),
+    ];
+    return {
+        opciones: claves.map((v) => ({ value: v, label: planOptionLabel(v) })),
+        etiquetas: Object.fromEntries(claves.map((v) => [v, planOptionLabel(v)])) as Record<string, string>,
+    };
+}
 
 // Las suscripciones aún NO aplican descuentos (coincide con el backend,
 // discount.service.js → DISCOUNTS_FOR_SUBSCRIPTIONS); se deriva del catálogo.
@@ -89,6 +99,13 @@ const discountSummary = (c: DiscountCode) =>
     c.type === "percent" ? `${c.value}% de descuento` : `$${c.value} de descuento`;
 
 export default function DescuentosPage() {
+    // El desplegable de plan sale del catálogo: un plan nuevo tiene que poder
+    // recibir su código sin tocar código.
+    const catalogoDescuentos = usePlanesDelCatalogo();
+    const { opciones: PLAN_OPTIONS, etiquetas: PLAN_LABEL } = useMemo(
+        () => opcionesDePlan(catalogoDescuentos),
+        [catalogoDescuentos],
+    );
     const [rows, setRows] = useState<Row[]>([]);
     // Snapshot ordenado de lo último guardado, para detectar cambios y descartar.
     const [saved, setSaved] = useState<{ _id: string; data: DiscountCode }[]>([]);
@@ -235,7 +252,7 @@ export default function DescuentosPage() {
             <div className="flex items-start gap-3 px-4 py-3 mb-5 bg-blue-50 border border-blue-200 rounded-2xl">
                 <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <p className="text-sm text-blue-800">
-                    Por ahora los descuentos solo se aplican a <strong>Personalizado</strong> (pago único). Essential y Premium son suscripción y aún no aceptan códigos.
+                    El código solo se aplica a los planes de <strong>pago único</strong>: hoy, <strong>Personalizado</strong> y <strong>Programa de Fluidez</strong>. Essential y Premium se renuevan y aún no aceptan códigos — si eliges <strong>Todos los planes</strong>, el descuento se ignora en esos dos.
                 </p>
             </div>
 
