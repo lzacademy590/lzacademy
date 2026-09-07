@@ -325,10 +325,15 @@ export default function PagoEstudiantesPage() {
   const planActual = planesCheckout.find((p) => p.key === plan);
   const isSubscription = planActual?.recurring ?? false;
   const showDiscount = planActual?.discountable ?? false;
-  const formatPrice = (cents: number) => {
-    const v = cents / 100;
-    return `${Number.isInteger(v) ? v : v.toFixed(2)}`;
-  };
+  /*
+    ⚠️ **Se reusa `precioEtiqueta`, que ya pone el "$".** Aquí había un formateador
+    local que devolvía el número pelado, así que con un descuento aplicado el botón
+    decía "Ir al pago seguro — 45" mientras el precio tachado justo al lado sí
+    llevaba "$50": el mismo importe con dos formatos, en la pantalla del pago. Dos
+    funciones para formatear un precio es exactamente como divergen.
+    (Revisión del PR #12.)
+  */
+  const formatPrice = (cents: number) => precioEtiqueta(cents);
   /*
     ⚠️ Sin plan resuelto se pinta cadena vacía, NO "$0": mientras el catálogo
     viaja hay un instante sin `planActual`, y un cero en el precio de un checkout

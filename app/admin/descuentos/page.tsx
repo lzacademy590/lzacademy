@@ -106,6 +106,20 @@ export default function DescuentosPage() {
         () => opcionesDePlan(catalogoDescuentos),
         [catalogoDescuentos],
     );
+    /*
+      ⚠️ Qué planes son de pago único sale del CATÁLOGO, no escrito a mano. El aviso
+      de abajo decía "hoy, Personalizado y Programa de Fluidez": en cuanto el admin
+      abra otro plan de pago único —o cambie el cobro de uno existente, que ahora
+      puede— el texto queda desfasado sin que nada falle. Es la misma pantalla que
+      ya deriva su desplegable del catálogo. (Revisión del PR #12.)
+    */
+    const { unicos, recurrentes } = useMemo(() => {
+        const lista = planesDeCheckout(catalogoDescuentos);
+        return {
+            unicos: lista.filter((p) => !p.recurring).map((p) => planLabel(p.key as DiscountPlan)),
+            recurrentes: lista.filter((p) => p.recurring).map((p) => planLabel(p.key as DiscountPlan)),
+        };
+    }, [catalogoDescuentos]);
     const [rows, setRows] = useState<Row[]>([]);
     // Snapshot ordenado de lo último guardado, para detectar cambios y descartar.
     const [saved, setSaved] = useState<{ _id: string; data: DiscountCode }[]>([]);
@@ -252,7 +266,14 @@ export default function DescuentosPage() {
             <div className="flex items-start gap-3 px-4 py-3 mb-5 bg-blue-50 border border-blue-200 rounded-2xl">
                 <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <p className="text-sm text-blue-800">
-                    El código solo se aplica a los planes de <strong>pago único</strong>: hoy, <strong>Personalizado</strong> y <strong>Programa de Fluidez</strong>. Essential y Premium se renuevan y aún no aceptan códigos — si eliges <strong>Todos los planes</strong>, el descuento se ignora en esos dos.
+                    El código solo se aplica a los planes de <strong>pago único</strong>
+                    {unicos.length > 0 && <>: hoy, <strong>{unicos.join(" y ")}</strong></>}.
+                    {recurrentes.length > 0 && (
+                        <>
+                            {" "}
+                            <strong>{recurrentes.join(" y ")}</strong> se {recurrentes.length === 1 ? "renueva" : "renuevan"} y aún no {recurrentes.length === 1 ? "acepta" : "aceptan"} códigos — si eliges <strong>Todos los planes</strong>, el descuento se ignora en {recurrentes.length === 1 ? "ese plan" : "esos"}.
+                        </>
+                    )}
                 </p>
             </div>
 
