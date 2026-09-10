@@ -91,12 +91,23 @@ const LEVELS = [
 
 const MONTHS_SHORT_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
-// Clave de cohorte (fecha de inicio) normalizada a "YYYY-MM-DD". Los usuarios sin
-// fecha caen en el grupo "none".
+// Día de ALTA del alumno, normalizado a "YYYY-MM-DD". Los usuarios sin fecha caen
+// en el grupo "none".
+//
+// ⚠️ **Esto NO es una cohorte, aunque el campo se llame `inscription_date` y aquí
+// se llamara así.** Desde el 2026-08-28 un ESSENTIAL entra el día que paga, así
+// que su fecha es la de su COMPRA. Agrupar por ella sigue siendo útil AQUÍ —esta
+// pantalla es para encontrar a una persona, y "quién se dio de alta el 14" es una
+// buena forma de buscar—, y por eso las pestañas se conservan: lo único que se
+// cambió es el rótulo, que prometía una fecha de inicio de curso.
+//
+// ⚠️ En el CHURN del Inicio la respuesta es otra (allí se agrupa por mes lo que no
+// va por cohorte, ver `cohortKey` en `metrics.service.js`), y es deliberado: una
+// pantalla busca personas y la otra compara tandas.
 const cohortKey = (u: AccessUser) =>
     u.inscription_date ? dayjs.utc(u.inscription_date).format("YYYY-MM-DD") : "none";
 
-// Etiqueta corta para el tab de cohorte: "15 jun" / "Sin fecha".
+// Etiqueta corta para el tab: "15 jun" / "Sin fecha".
 function cohortLabel(key: string) {
     if (key === "none") return "Sin fecha";
     const [, m, d] = key.split("-");
@@ -552,7 +563,7 @@ export default function AccesosPage() {
             {/* Cohort (start date) tabs */}
             {cohorts.length > 1 && (
                 <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Fecha de inicio</p>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Fecha de alta</p>
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             onClick={() => setDateFilter("all")}

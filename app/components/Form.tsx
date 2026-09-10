@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStartDates } from "../hooks/useStartDates";
 import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
-import { requiresScheduling, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
+import { pideHorario, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 
 interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
@@ -188,14 +188,18 @@ const PaymentForm = ({
     useEffect(() => { setAccepted(false); }, [plan, formData.interestDate]);
 
     useEffect(() => {
-        if (!requiresScheduling(plan)) { setPremiumSlots([]); return; }
+        // ⚠️ Lo decide el CATÁLOGO, no la lista estática de cuatro: un plan abierto
+        // en Admin › Planes también puede pedir horario, y con `requiresScheduling`
+        // nunca podría — su clave no está en `PLAN_MAP`.
+        if (!pideHorario(catalogo, plan)) { setPremiumSlots([]); return; }
         setPremiumSlotsLoading(true);
-        fetch(`${BACKEND_URL}/config/premium-slots`)
+        // Los horarios se piden POR PLAN: los que no declaran plan valen para todos.
+        fetch(`${BACKEND_URL}/config/premium-slots?plan=${encodeURIComponent(plan)}`)
             .then(r => r.json())
             .then(data => setPremiumSlots(Array.isArray(data) ? data : []))
             .catch(() => setPremiumSlots([]))
             .finally(() => setPremiumSlotsLoading(false));
-    }, [plan]);
+    }, [plan, catalogo]);
 
     const validateForm = () => {
         if (!formData.email || !formData.fullName)
@@ -641,7 +645,7 @@ const PaymentForm = ({
                         </div>
 
                         {/* Horarios disponibles — solo Premium con fecha seleccionada */}
-                        {requiresScheduling(plan) && formData.interestDate && (() => {
+                        {pideHorario(catalogo, plan) && formData.interestDate && (() => {
                             const dateSlots = premiumSlots.filter(s => s.start_date === formData.interestDate);
                             if (premiumSlotsLoading) return null;
                             if (dateSlots.length === 0) return (
@@ -657,7 +661,7 @@ const PaymentForm = ({
                                 <div className="rounded-xl overflow-hidden border border-falu-red-200">
                                     <div className="flex items-center justify-between px-4 py-2.5 bg-falu-red-50 border-b border-falu-red-100">
                                         <p className="text-sm font-semibold text-falu-red-900">Horarios de primera clase</p>
-                                        <span className="text-xs text-zinc-400 bg-white border border-zinc-200 px-2 py-0.5 rounded-full">{dateSlots.length} disponibles</span>
+                                        <span className="text-xs text-zinc-400 bg-white border border-zinc-200 px-2 py-0.5 rounded-full">{dateSlots.length} {dateSlots.length === 1 ? "disponible" : "disponibles"}</span>
                                     </div>
                                     <div className="px-4 py-3 flex flex-wrap gap-2">
                                         {dateSlots.map(slot => {

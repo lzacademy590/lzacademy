@@ -3,11 +3,13 @@
 import Image from "next/image";
 import { Suspense, use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { unidadDePrecio, notaDeCobro } from "@/app/components/PrecioDelPlan";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import { PLAN_MAP } from "@/app/lib/plans";
+import { fraseDeClases } from "@/app/lib/dias-de-clase";
 import {
-  usePlanesDelCatalogo,
+  useCatalogoDePlanes,
   precioEtiqueta,
 } from "@/app/hooks/usePlanesDelCatalogo";
 
@@ -43,7 +45,7 @@ function LandingDePlan({ clave }: { clave: string }) {
   const dificultades = searchParams.get("dificultades") ?? "";
   const [modalOpen, setModalOpen] = useState(false);
 
-  const catalogo = usePlanesDelCatalogo();
+  const { planes: catalogo, estado, reintentar } = useCatalogoDePlanes();
   // La clave viaja en la URL en minúsculas (es lo que hacen los enlaces del
   // embudo); el catálogo la trae como la escribió el admin.
   const plan = catalogo?.find(
@@ -51,17 +53,64 @@ function LandingDePlan({ clave }: { clave: string }) {
   );
 
   /*
-    Tres estados y no dos: mientras el catálogo viaja no se sabe si el plan
-    existe, y pintar "no encontrado" en ese hueco le diría a alguien que su
-    enlace está roto cuando solo va lento.
+    CUATRO estados, no tres. El comentario de aquí decía "tres y no dos" y tenía
+    razón a medias: distinguía "cargando" de "no existe" y metía en el mismo saco
+    "cargando" y **"no se pudo cargar"**, porque el hook devolvía `null` para las
+    dos. Medido en el recorrido del 2026-09-09: con el catálogo caído esta
+    pantalla se quedaba en **"Cargando el plan…" para siempre** —mismo texto a los
+    3, 10, 20 y 35 segundos— sin reintento y sin ninguna salida.
+
+    Y era la MISMA pantalla la que resolvía bien el caso del plan retirado, así
+    que daba tres respuestas distintas a la misma pregunta según por qué faltara
+    el dato.
   */
-  if (!catalogo) {
+  if (estado === 'cargando') {
     return (
       <main
         className="relative min-h-[calc(100dvh-68px)] flex items-center justify-center"
         style={{ backgroundColor: "#fadadd" }}
       >
         <p className="text-[15px] font-bold text-zinc-500">Cargando el plan…</p>
+      </main>
+    );
+  }
+
+  /*
+    ⚠️ Un fallo de carga NO se pinta como "ese plan no existe". Le daría al
+    comprador una explicación de NEGOCIO creíble —"lo retiraron"— para un problema
+    TÉCNICO, así que se va y no vuelve. Es la misma regla que ya costó un hallazgo
+    con las fechas de cohorte del checkout de la plataforma.
+  */
+  if (estado === 'fallo') {
+    return (
+      <main
+        className="relative min-h-[calc(100dvh-68px)] flex flex-col items-center justify-center gap-5 px-6 text-center"
+        style={{ backgroundColor: "#fadadd" }}
+      >
+        <h1 className="text-2xl lg:text-3xl font-extrabold" style={{ color: "#C0353E" }}>
+          No pudimos cargar este plan
+        </h1>
+        <p className="max-w-md text-[14px] font-medium text-zinc-600">
+          Ha sido un problema nuestro, no de tu enlace. Vuelve a intentarlo.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={reintentar}
+            className="inline-flex items-center gap-3 rounded-2xl px-10 py-4 text-[15px] font-extrabold text-white shadow-lg transition hover:opacity-90 active:scale-95"
+            style={{ backgroundColor: "#bd181e" }}
+          >
+            Reintentar
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/paso-tres")}
+            className="inline-flex items-center gap-3 rounded-2xl border-2 px-8 py-4 text-[15px] font-extrabold transition hover:opacity-90 active:scale-95"
+            style={{ borderColor: "#bd181e", color: "#bd181e" }}
+          >
+            Ver los planes
+          </button>
+        </div>
       </main>
     );
   }
@@ -93,6 +142,12 @@ function LandingDePlan({ clave }: { clave: string }) {
 
   const arte = PLAN_MAP[plan.key];
   const features = plan.features;
+  /*
+    Los días de clase del plan, del catálogo. Esta landing es la que estrena un
+    plan abierto desde Admin › Planes, así que es justo donde no puede haber copy
+    escrito a mano: nadie va a redactarle una frase de horarios a cada plan nuevo.
+  */
+  const clasesLinea = fraseDeClases(plan.liveClasses, plan.classDays, plan.classMode, plan.sessionsPerWeek);
 
   function handleComenzar() {
     router.push(
@@ -161,17 +216,19 @@ function LandingDePlan({ clave }: { clave: string }) {
                         {precioEtiqueta(plan.priceCents)}
                       </span>
                       {/*
-                        ⚠️ "USD / 28 días", no "USD/mes". El cobro es cada 4
-                        semanas: son 13,04 al año, no 12. Las cards de /paso-tres
-                        ya se corrigieron por esto; las cuatro landings escritas a
-                        mano siguen diciendo "mes" y es deuda suya, no de aquí.
+                        ⚠️ El periodo va DONDE significa algo: en la unidad si el
+                        cobro se repite, y dentro de la nota si es un pago único.
+                        Aquí había una copia propia que pintaba "USD / 28 días"
+                        SIEMPRE, así que una rama de pago único salía con la tarifa
+                        y su desmentido a dos centímetros. La regla vive ahora en
+                        `PrecioDelPlan` y la comparten las dos pantallas.
                       */}
-                      <span className="text-xs lg:text-sm font-bold"> USD / 28 días</span>
+                      <span className="text-xs lg:text-sm font-bold">
+                        {unidadDePrecio(plan.recurring)}
+                      </span>
                     </div>
                     <p className="text-[11px] lg:text-[12px] text-zinc-400 font-medium mb-2">
-                      {plan.recurring
-                        ? "Facturación automática cada 4 semanas"
-                        : "Pago único · sin renovación automática"}
+                      {notaDeCobro(plan.recurring)}
                     </p>
                     {arte?.checkoutTagline && (
                       <p className="text-[12px] lg:text-[13px] text-zinc-500 font-medium leading-relaxed">
@@ -187,6 +244,11 @@ function LandingDePlan({ clave }: { clave: string }) {
                     <p className="text-[11px] lg:text-[13px] font-extrabold uppercase tracking-widest mb-4" style={{ color: "#C0353E" }}>
                       Incluye:
                     </p>
+                    {clasesLinea && (
+                      <p className="text-[13px] lg:text-[15px] font-bold mb-4" style={{ color: "#C0353E" }}>
+                        {clasesLinea}
+                      </p>
+                    )}
                     {features.length > 0 ? (
                       <ul className="flex flex-col gap-3 lg:gap-4">
                         {features.map((feat) => (

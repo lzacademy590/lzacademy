@@ -14,6 +14,8 @@
 // cada plan) sigue viviendo en cada página, porque difiere entre páginas.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { fraseDeClases } from "@/app/lib/dias-de-clase";
+
 export type PlanKey =
   | "Essential"
   | "Premium"
@@ -103,10 +105,13 @@ export const PLAN_LIST: PlanDef[] = [
       ...ALL_LEVELS_ON,
       "Intermedio alto-produccion": false,
     },
-    checkoutTagline: "Todo lo de Essential, con clases diarias en vivo.",
+    checkoutTagline: "Todo lo de Essential, con clases en vivo.",
     checkoutFeatures: [
       "Todo lo del Plan Essential",
-      "1 hora de clase diaria (lunes a miércoles)",
+      // ⚠️ Sin FRECUENCIA ni DÍAS: los pone `conLaFraseDeClases` desde el
+      // catálogo. Escritos aquí decían "diaria" mientras la regla son lunes a
+      // jueves, y esta cadena acaba dentro del recibo de Stripe.
+      "1 hora de clase en vivo",
       "Reuniones de práctica los viernes",
       "Práctica hablada diaria y acompañamiento constante",
     ],
@@ -131,7 +136,9 @@ export const PLAN_LIST: PlanDef[] = [
     checkoutTagline: "Acompañamiento 1:1 totalmente a tu medida.",
     checkoutFeatures: [
       "Todo lo del Plan Premium",
-      "3 sesiones privadas 1:1 por semana adaptadas a ti",
+      // ⚠️ Sin el NÚMERO: lo pone `conLaFraseDeClases`. Decía 3 y el catálogo
+      // dice 1 — y este texto llega al recibo de Stripe.
+      "Sesiones privadas 1:1 adaptadas a ti",
       "1 sesión de práctica grupal cada viernes",
       "Acceso completo al Método 590",
       "Horario flexible para tus sesiones privadas",
@@ -300,6 +307,29 @@ export function planBadgeClassDe(key: string): string {
  * va a rechazar. Con `DISCOUNTABLE_PLANS` —una lista estática— un plan nuevo no
  * podía usar descuentos aunque fuera de pago único.
  */
+/**
+ * Las viñetas del checkout, con la de CLASES derivada del catálogo.
+ *
+ * ⚠️⚠️ La frase de clases NO puede vivir en `checkoutFeatures`. Escrita a mano
+ * decía *"1 hora de clase diaria"* para Premium —que son lunes a jueves— y
+ * *"3 sesiones privadas 1:1 por semana"* para Personalizado —que es 1—, y esas
+ * dos cadenas viajaban hasta **la descripción del producto DENTRO de Stripe**:
+ * el comprador leía en su propio recibo un número que el producto no cumple.
+ *
+ * Derivándola, cambiar los días o la frecuencia en Admin › Planes mueve la card,
+ * la landing, la pantalla de pago y el recibo a la vez. Que es de lo que va esto.
+ */
+function conLaFraseDeClases(
+  features: string[],
+  fila: { liveClasses?: boolean | null; classDays?: number[] | null; classMode?: string | null; sessionsPerWeek?: number | null } | undefined,
+): string[] {
+  const frase = fila
+    ? fraseDeClases(fila.liveClasses ?? null, fila.classDays ?? [], fila.classMode, fila.sessionsPerWeek)
+    : null;
+  // Va PRIMERA: es lo que decide la compra de un plan con clases en vivo.
+  return frase ? [frase, ...features] : features;
+}
+
 export function planesDeCheckout(
   catalogo: Array<{
     key: string;
@@ -308,6 +338,10 @@ export function planesDeCheckout(
     recurring: boolean;
     studentCheckout: boolean;
     features: string[];
+    liveClasses?: boolean | null;
+    classDays?: number[] | null;
+    classMode?: string | null;
+    sessionsPerWeek?: number | null;
   }> | null,
 ): PlanDeCheckout[] {
   if (!catalogo) {
@@ -340,9 +374,10 @@ export function planesDeCheckout(
         tagline: local?.checkoutTagline ?? "",
         // El copy local gana; las viñetas del admin rellenan al plan que no lo
         // tiene, igual que en las cards de /paso-tres.
-        features: local?.checkoutFeatures?.length
-          ? local.checkoutFeatures
-          : p.features,
+        features: conLaFraseDeClases(
+          local?.checkoutFeatures?.length ? local.checkoutFeatures : p.features,
+          p,
+        ),
         sinFichaLocal: !local,
       };
     });
@@ -365,8 +400,47 @@ export function isSubscriptionPlan(key: string): boolean {
   return !!PLAN_MAP[key]?.recurring;
 }
 // true = el plan agenda su primera clase tras pagar (p. ej. Premium).
+/**
+ * @deprecated Lo sustituye `pideHorario(catalogo, key)`, que lee el CATÁLOGO.
+ * Esta versión mira `PLAN_MAP`, la lista estática de cuatro, así que un plan
+ * abierto en el admin nunca podría pedir horario — y pedirlo es justo lo que
+ * hace que su alumno acabe con una clase asignada.
+ */
 export function requiresScheduling(key: string): boolean {
   return !!PLAN_MAP[key]?.requiresScheduling;
+}
+
+/**
+ * ¿Este plan pide el horario de la primera clase al comprarlo?
+ *
+ * Lo dice el catálogo, que a su vez lo lee de Admin › Planes de la plataforma.
+ * **Respaldo en la lista local** mientras el catálogo carga o si no responde:
+ * misma doctrina que `planesDeCheckout()` y que `PRECIO_DE_RESPALDO`.
+ */
+/**
+ * ¿Este plan se RENUEVA?
+ *
+ * ⚠️ Lo dice el catálogo, con la lista local de respaldo — mismo patrón que
+ * `pideHorario`. `isSubscriptionPlan` mira `PLAN_MAP`, los cuatro de siempre, así
+ * que un plan abierto en Admin › Planes salía SIEMPRE como pago único: el
+ * checkout le decía *"Cancela cuando quieras desde tu portal"* y `/success`, unos
+ * minutos después, **"sin renovación automática"**. Dos pantallas de la misma
+ * compra contradiciéndose sobre si le van a volver a cobrar.
+ */
+export function esPlanQueRenueva(
+  catalogo: Array<{ key: string; recurring: boolean }> | null,
+  key: string,
+): boolean {
+  const fila = catalogo?.find((p) => p.key === key);
+  return fila ? fila.recurring : !!PLAN_MAP[key]?.recurring;
+}
+
+export function pideHorario(
+  catalogo: Array<{ key: string; requiresScheduling: boolean }> | null,
+  key: string,
+): boolean {
+  const fila = catalogo?.find((p) => p.key === key);
+  return fila ? fila.requiresScheduling : !!PLAN_MAP[key]?.requiresScheduling;
 }
 /**
  * @deprecated Lo sustituye `planesDeCheckout()`, que deriva esto de `recurring`

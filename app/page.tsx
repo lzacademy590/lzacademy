@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-//import HomeClient from "./components/HomeClient";
+// La home antigua (HomeClient + Plan.tsx) se BORRÓ el 2026-09-08: llevaba
+// comentada aquí desde hacía tiempo y su copy se había quedado atrás —decía
+// "lunes a miércoles" y "3 sesiones privadas 1:1 por semana" cuando la regla es
+// lunes a jueves y UNA sesión—, así que engañaba a quien buscara dónde
+// arreglar ese texto. Está en el historial de git si hiciera falta.
 import InicioPage from "./inicio/iniciopage";
 
 export const metadata: Metadata = {
@@ -25,6 +29,6 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  //return <HomeClient />;
+  // (aquí iba <HomeClient />, ver la nota de arriba)
   return <InicioPage />;
 }

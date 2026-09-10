@@ -20,8 +20,19 @@ function formatMonth(key: string) {
     return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
 }
 
+// La clave viene en dos formas y significan cosas distintas (ver `cohortKey` en
+// el backend): "YYYY-MM-DD" es una COHORTE de verdad —una tanda que el negocio
+// abrió— y "YYYY-MM" es un mes de compra de los planes que NO van por cohorte,
+// como Essential, que entra el día que paga.
+//
+// ⚠️ Se rotulan distinto A PROPÓSITO. Enseñar "sep 2026" al lado de "21 sep 2026"
+// sin decir por qué invita a leerlos como lo mismo, y son justo lo contrario: uno
+// es un grupo que empezó junto y el otro un montón de gente que no tiene tanda.
 function formatCohort(key: string) {
     if (key === "Sin fecha") return key;
+    if (/^\d{4}-\d{2}$/.test(key)) {
+        return `${dayjs.utc(`${key}-01`).format("MMM YYYY")} · sin cohorte`;
+    }
     return dayjs.utc(key).format("DD MMM YYYY");
 }
 
