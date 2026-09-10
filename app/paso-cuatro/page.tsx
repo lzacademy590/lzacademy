@@ -2,9 +2,10 @@
 
 import { Suspense, useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PaymentForm from "@/app/components/Form";
-import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
+import { useCatalogoDePlanes } from "@/app/hooks/usePlanesDelCatalogo";
 import { CHECKOUT_PLAN_KEYS, PLAN_MAP } from "@/app/lib/plans";
 
 /*
@@ -78,12 +79,40 @@ function PasoCuatroContent() {
     landing de un plan nuevo— caía a Essential: el alumno pulsaba "Comenzar" en
     un plan y aterrizaba en otro, con otro precio.
   */
-  const catalogoDelEmbudo = usePlanesDelCatalogo();
+  const {
+    planes: catalogoDelEmbudo,
+    estado: estadoDelCatalogo,
+    reintentar: reintentarCatalogo,
+  } = useCatalogoDePlanes();
   const delCatalogo = catalogoDelEmbudo?.find(
     (p) => p.studentCheckout && p.key.toLowerCase() === planParam.toLowerCase(),
   )?.key;
-  const initialPlan: PlanType =
-    planMap[planParam.toLowerCase()] ?? delCatalogo ?? "Essential";
+
+  /*
+    ⚠️⚠️ **El plan del enlace NO cae a Essential, y esto era un bloqueante de
+    dinero.** La línea decía `planMap[...] ?? delCatalogo ?? "Essential"`, así que
+    un enlace a una RAMA —cuya clave el mapa local no conoce— caía a Essential en
+    cuanto el catálogo no llegara: mientras cargaba, si estaba caído, o si el plan
+    se había retirado. Y no era solo la cabecera: el `<select name="plan">` caía a
+    su respaldo de cuatro y a `options[0]`, y el formulario **cobraba Essential**.
+
+    Medido en el recorrido del 2026-09-09: `?plan=PERSONALIZED_INMERSION` con el
+    catálogo caído llegaba a una sesión real de Stripe diciendo
+    **"Essential — 10,00 US$"**, sin un solo aviso. El comprador de una rama de
+    $210 acababa comprando otra cosa.
+
+    Es el mismo fallo que el CLAUDE.md raíz ya documenta para el desplegable de
+    "Editar usuario" del admin —un `select` que cae a su primera opción cuando no
+    encuentra el valor— reaparecido en el checkout del comprador.
+
+    Sin `?plan=` en la URL, Essential SÍ es el default legítimo: nadie pidió otra
+    cosa. Lo que no puede es sustituir a un plan que el enlace nombró.
+  */
+  const planPedido = planParam.trim();
+  const planResuelto: PlanType | null =
+    planMap[planPedido.toLowerCase()] ?? delCatalogo ?? null;
+  const noSeResolvio = planPedido !== "" && planResuelto === null;
+  const initialPlan: PlanType = planResuelto ?? "Essential";
   const nivel: string = nivelMap[nivelParam] ?? "";
 
   const [activePlan, setActivePlan] = useState<PlanType>(initialPlan);
@@ -97,6 +126,66 @@ function PasoCuatroContent() {
   useEffect(() => {
     setActivePlan(initialPlan);
   }, [initialPlan]);
+
+  /*
+    Mientras el catálogo viaja no se puede saber si la clave del enlace existe, y
+    montar el formulario en ese hueco es justo lo que dejaba comprar Essential por
+    error. Se espera; el hueco dura lo que tarda una petición.
+  */
+  if (noSeResolvio && estadoDelCatalogo === 'cargando') {
+    return (
+      <main
+        className="relative min-h-[calc(100dvh-68px)] flex items-center justify-center"
+        style={{ backgroundColor: "#fadadd" }}
+      >
+        <p className="text-[15px] font-bold text-zinc-500">Cargando tu plan…</p>
+      </main>
+    );
+  }
+
+  /*
+    ⚠️ Y si no se resolvió con el catálogo YA en la mano —caído, o el plan
+    retirado—, se dice y se ofrece salida en vez de vender otro. Cobrar el plan
+    equivocado es el peor desenlace posible de esta pantalla.
+  */
+  if (noSeResolvio) {
+    return (
+      <main
+        className="relative min-h-[calc(100dvh-68px)] flex flex-col items-center justify-center gap-5 px-6 text-center"
+        style={{ backgroundColor: "#fadadd" }}
+      >
+        <h1 className="text-2xl lg:text-3xl font-extrabold" style={{ color: "#C0353E" }}>
+          {estadoDelCatalogo === 'fallo'
+            ? "No pudimos cargar tu plan"
+            : "Ese plan ya no está disponible"}
+        </h1>
+        <p className="max-w-md text-[14px] font-medium text-zinc-600">
+          {estadoDelCatalogo === 'fallo'
+            ? "Ha sido un problema nuestro, no de tu enlace. Vuelve a intentarlo."
+            : "Puede que se haya retirado o que el enlace esté mal. Estos son los planes que puedes contratar ahora mismo."}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {estadoDelCatalogo === 'fallo' && (
+            <button
+              type="button"
+              onClick={reintentarCatalogo}
+              className="inline-flex items-center gap-3 rounded-2xl px-10 py-4 text-[15px] font-extrabold text-white shadow-lg transition hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: "#bd181e" }}
+            >
+              Reintentar
+            </button>
+          )}
+          <Link
+            href="/paso-tres"
+            className="inline-flex items-center gap-3 rounded-2xl border-2 px-8 py-4 text-[15px] font-extrabold transition hover:opacity-90 active:scale-95"
+            style={{ borderColor: "#bd181e", color: "#bd181e" }}
+          >
+            Ver los planes
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main

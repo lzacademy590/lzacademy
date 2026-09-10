@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getPlan, isSubscriptionPlan as isSubPlan, requiresScheduling } from "@/app/lib/plans";
+import { getPlan, esPlanQueRenueva, pideHorario, planLabel } from "@/app/lib/plans";
+import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 
 interface PremiumSlot { id: string; datetime_pt: string; enabled: boolean; }
@@ -124,9 +125,12 @@ const SuccessContent = () => {
             .catch(() => {});
     }, [session_id]);
 
-    const isPremiumPending = state === "success" && requiresScheduling(userData?.plan) && schedulingStatus === "pending";
-    const isPremiumBooked  = state === "success" && requiresScheduling(userData?.plan) && schedulingStatus === "completed";
-    const isSubscription = isSubPlan(userData?.plan);
+    const catalogo = usePlanesDelCatalogo();
+    const pideSuHorario = pideHorario(catalogo, userData?.plan ?? "");
+    const isPremiumPending = state === "success" && schedulingStatus === "pending";
+    const isPremiumBooked  = state === "success" && pideSuHorario && schedulingStatus === "completed";
+    // Del catálogo, no de la lista de cuatro: ver `esPlanQueRenueva`.
+    const isSubscription = esPlanQueRenueva(catalogo, userData?.plan ?? "");
 
     const nextChargeDate = isSubscription && userData?.current_period_end
         ? new Date(userData.current_period_end).toLocaleDateString("es-ES", {
@@ -167,10 +171,30 @@ const SuccessContent = () => {
         : null;
 
     useEffect(() => {
-        if (state !== "success" || userData?.plan !== "Premium" || schedulingStatus !== "pending") return;
+        /*
+          ⚠️⚠️ **Aquí ponía `userData?.plan !== "Premium"`**, un literal, mientras
+          doce líneas más arriba la misma pregunta se contestaba con la bandera. O
+          sea: el plan estaba escrito a mano DOS veces, y la que decidía si se
+          carga el selector de horarios era la peor de las dos. Con eso, ningún
+          plan que no se llame exactamente "Premium" —incluido cualquiera abierto
+          en Admin › Planes— llegaba a ver la pantalla donde se elige la clase.
+        */
+        /*
+          ⚠️⚠️ **El selector se decide por `scheduling_status`, no por el catálogo
+          vivo.** `"pending"` solo se escribe cuando el plan COMPRADO pedía
+          horario, así que ya es la respuesta congelada en el momento del pago.
+          Preguntándole además al catálogo, un cambio del admin entre la compra y
+          esta pantalla dejaba al alumno en `pending` y SIN selector: pagó, se le
+          debe una clase, y no tiene ninguna vía para elegirla.
+
+          (El caso `completed` de abajo sí sigue mirando el catálogo: ahí lo peor
+          que pasa es no pintar una confirmación, no dejar a nadie colgado.)
+        */
+        if (state !== "success" || schedulingStatus !== "pending") return;
         const inscriptionDate = userData?.inscription_date ?? null;
         setSlotsLoading(true);
-        fetch(`${BACKEND_URL}/config/premium-slots`)
+        // Por plan: un horario sin `plan` declarado sigue valiendo para todos.
+        fetch(`${BACKEND_URL}/config/premium-slots?plan=${encodeURIComponent(userData?.plan ?? "")}`)
             .then(r => r.json())
             .then(data => {
                 const all: PremiumSlot[] = Array.isArray(data) ? data : [];
@@ -178,7 +202,7 @@ const SuccessContent = () => {
             })
             .catch(() => setSlots([]))
             .finally(() => setSlotsLoading(false));
-    }, [state, userData?.plan, schedulingStatus]);
+    }, [state, userData?.plan, schedulingStatus, pideSuHorario]);
 
     const handleConfirmSlot = async () => {
         if (!selectedSlot) return;
@@ -724,7 +748,10 @@ const SuccessContent = () => {
                                                 <span className="sc-section-badge">1</span>
                                                 <div>
                                                     <p className="sc-section-title">Selecciona tu horario</p>
-                                                    <p className="sc-section-sub">Primera clase Premium · en tu zona horaria</p>
+                                                    {/* ⚠️ El nombre del plan, no el literal "Premium": la decisión de MOSTRAR
+    esto se hizo dinámica y el texto de dentro se quedó atrás, así que a un
+    plan abierto en el admin se le nombraba otro plan justo después de pagar. */}
+                                                    <p className="sc-section-sub">Primera clase de {planLabel(userData?.plan ?? "")} · en tu zona horaria</p>
                                                 </div>
                                             </div>
 

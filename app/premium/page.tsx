@@ -1,15 +1,26 @@
 "use client";
 
 import Image from "next/image";
+import { useFeaturesDelPlan } from "@/app/hooks/useFeaturesDelPlan";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import PrecioDelPlan from "@/app/components/PrecioDelPlan";
+import ClasesDelPlan from "@/app/components/ClasesDelPlan";
 
-const features = [
+/*
+  ⚠️ Esto ya NO es lo que se pinta: es el RESPALDO. Las viñetas las manda
+  Admin › Planes (ver `useFeaturesDelPlan`), igual que en las cards de
+  /paso-tres. Escritas aquí, esta página contradecía a la tarjeta que trae
+  hasta ella — visto en producción con Fluidez.
+*/
+const featuresDeRespaldo = [
   "Acceso completo al Método 590",
-  "1 hora de clase diaria (lunes a miércoles)",
+  // Los días los manda el catálogo (`ClasesDelPlan`), no esta lista: escritos
+  // aquí decían "lunes a miércoles" mientras la card que lleva a esta página
+  // decía "lunes a jueves", en el mismo embudo.
+  "1 hora de clase en vivo",
   "Reuniones de práctica los viernes",
   "Explicación clara de teoría",
   "Práctica guiada en cada clase",
@@ -20,6 +31,8 @@ const features = [
 ];
 
 function PremiumPlanContent() {
+  // Las viñetas las manda Admin › Planes; el array de arriba es el respaldo.
+  const features = useFeaturesDelPlan("Premium", featuresDeRespaldo);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nivel = searchParams.get("nivel") ?? "";
@@ -114,8 +127,17 @@ function PremiumPlanContent() {
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-5 text-[11.5px] lg:text-[13px] leading-relaxed italic" style={{ color: "#C0353E" }}>
-                      Horario fijo lunes a miércoles. Accede hoy a la plataforma. Las clases en vivo inician en la fecha seleccionada en el formulario.
+                    {/* ⚠️ Decía "Horario fijo lunes a miércoles" mientras la regla
+                        del producto es lunes a jueves y la card que trae aquí
+                        prometía jueves. El día lo dice ahora el catálogo, y si no
+                        lo dice no se pinta nada: anunciar el día equivocado de una
+                        clase en vivo hace que el alumno no aparezca. */}
+                    <ClasesDelPlan
+                      clave="Premium"
+                      className="mt-5 text-[11.5px] lg:text-[13px] font-bold not-italic"
+                    />
+                    <p className="mt-2 text-[11.5px] lg:text-[13px] leading-relaxed italic" style={{ color: "#C0353E" }}>
+                      Horario fijo, el mismo cada semana. Accede hoy a la plataforma. Las clases en vivo inician en la fecha seleccionada en el formulario.
                     </p>
                   </div>
 
