@@ -202,7 +202,12 @@ const SuccessContent = () => {
             })
             .catch(() => setSlots([]))
             .finally(() => setSlotsLoading(false));
-    }, [state, userData?.plan, schedulingStatus, pideSuHorario]);
+        // ⚠️ `pideSuHorario` NO va en las dependencias, y es deliberado: este
+        // efecto NO consulta el catálogo —lo explica el comentario de arriba— así
+        // que tenerlo aquí solo forzaba un refetch de los horarios cada vez que el
+        // catálogo llegaba. El código contradecía a su propio comentario. Lo
+        // señaló la revisión del PR #14.
+    }, [state, userData?.plan, userData?.inscription_date, schedulingStatus]);
 
     const handleConfirmSlot = async () => {
         if (!selectedSlot) return;

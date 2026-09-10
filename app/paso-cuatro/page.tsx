@@ -84,8 +84,13 @@ function PasoCuatroContent() {
     estado: estadoDelCatalogo,
     reintentar: reintentarCatalogo,
   } = useCatalogoDePlanes();
+  // ⚠️ Se compara contra la clave YA RECORTADA: la resolución de abajo usa
+  // `planPedido` y aquí se usaba `planParam` en crudo, así que un espacio pegado
+  // en la URL —copiar y pegar— hacía que el plan no se resolviera por catálogo
+  // aunque existiera. Lo señaló la revisión del PR #14.
+  const claveBuscada = planParam.trim().toLowerCase();
   const delCatalogo = catalogoDelEmbudo?.find(
-    (p) => p.studentCheckout && p.key.toLowerCase() === planParam.toLowerCase(),
+    (p) => p.studentCheckout && p.key.toLowerCase() === claveBuscada,
   )?.key;
 
   /*
