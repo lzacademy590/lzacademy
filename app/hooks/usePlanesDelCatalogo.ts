@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EL CATÁLOGO MANDA QUÉ CARDS EXISTEN (2026-09-06)
@@ -31,6 +31,11 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 export interface PlanDelCatalogo {
   key: string;
   label: string;
+  /**
+   * Familia de la que este plan es rama, o `null` si es suelto. Las ramas se
+   * pintan como UNA carta con selector; la base es la que cumple `key === family`.
+   */
+  family: string | null;
   priceCents: number;
   recurring: boolean;
   /** Lo tiene la plataforma y este backend no sabe cobrarlo: se compra allí. */
@@ -60,6 +65,22 @@ export interface PlanDelCatalogo {
   requiresScheduling: boolean;
   /** Participa en la matriz de niveles y en los links de acceso. */
   hasLevels: boolean;
+  /**
+   * ¿Lleva clases en vivo? **`null` = la plataforma no lo dijo**, y no es lo
+   * mismo que `false`. Una versión antigua no puede acabar anunciando que
+   * Premium no tiene clases: con `null` la card no pinta nada y se queda como
+   * estaba. Es la misma distinción que ya se guarda para la recurrencia.
+   */
+  liveClasses: boolean | null;
+  /**
+   * Días, en **convención Zoom** (1=Dom … 7=Sáb, ver `lib/dias-de-clase`).
+   * Vacío con `liveClasses: true` es "tiene clases sin día fijo" (planes 1 a 1).
+   */
+  classDays: number[];
+  /** `'GRUPAL'` o `'UNO_A_UNO'`. `null` = la plataforma no lo dijo. */
+  classMode: string | null;
+  /** Solo lo declaran los 1:1: en un grupal los días ya son la frecuencia. */
+  sessionsPerWeek: number | null;
 }
 
 /**
@@ -73,15 +94,59 @@ export function precioEtiqueta(centavos: number): string {
   return `$${Number.isInteger(dolares) ? dolares : dolares.toFixed(2)}`;
 }
 
-export function usePlanesDelCatalogo(): PlanDelCatalogo[] | null {
+/**
+ * En qué punto está la lectura del catálogo.
+ *
+ * ⚠️⚠️ **`null` significaba DOS cosas y por eso hubo tres fallos a la vez.**
+ * `usePlanesDelCatalogo` devolvía `null` mientras cargaba **y** si la petición
+ * fallaba, así que ninguna pantalla podía distinguirlos y cada una se inventaba
+ * su respaldo. Medido en el recorrido del 2026-09-09:
+ *
+ *  · `/plan/<clave>` se quedaba en **"Cargando el plan…" para siempre** — una
+ *    sola petición, sin reintento, con el mismo texto a los 35 segundos.
+ *  · `/paso-cuatro` caía a **Essential en silencio** y llegaba a cobrar $10 por
+ *    una rama de $210.
+ *  · `/paso-tres` apagaba la escalera entera y enseñaba un precio viejo.
+ *
+ * "No ha llegado todavía" y "no va a llegar" piden respuestas opuestas: una es
+ * esperar y la otra ofrecer una salida. Es la misma regla que este repo ya tiene
+ * escrita para el alumno — **un fallo de carga no se pinta como "no hay nada"**.
+ */
+export type EstadoDelCatalogo = 'cargando' | 'listo' | 'fallo';
+
+/**
+ * El catálogo CON su estado, para quien necesite distinguirlos.
+ *
+ * ⚠️ `usePlanesDelCatalogo` se conserva como envoltorio y NO cambia de firma: lo
+ * consumen doce sitios y casi todos solo quieren la lista. Cambiar la firma para
+ * los dos que necesitan el estado habría sido tocar diez pantallas que no tienen
+ * nada que arreglar.
+ */
+export function useCatalogoDePlanes(): {
+  planes: PlanDelCatalogo[] | null;
+  estado: EstadoDelCatalogo;
+  reintentar: () => void;
+} {
   const [planes, setPlanes] = useState<PlanDelCatalogo[] | null>(null);
+  const [estado, setEstado] = useState<EstadoDelCatalogo>('cargando');
+  const [intento, setIntento] = useState(0);
+  const reintentar = useCallback(() => {
+    setEstado('cargando');
+    setIntento((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
     fetch(`${BACKEND_URL}/config/plans`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        if (cancelado || !Array.isArray(data)) return;
+        if (cancelado) return;
+        // Una respuesta que no es lista no es un catálogo vacío: es una que no
+        // se entiende, y eso es un FALLO, no "no hay planes".
+        if (!Array.isArray(data)) {
+          setEstado('fallo');
+          return;
+        }
         const filas: PlanDelCatalogo[] = [];
         for (const p of data) {
           if (!p || typeof p !== "object" || typeof p.key !== "string") continue;
@@ -91,6 +156,7 @@ export function usePlanesDelCatalogo(): PlanDelCatalogo[] | null {
           filas.push({
             key: p.key,
             label: typeof p.label === "string" ? p.label : p.key,
+            family: typeof p.family === "string" && p.family ? p.family : null,
             priceCents: p.priceCents,
             recurring: p.recurring === true,
             soloEnPlataforma: p.soloEnPlataforma === true,
@@ -108,18 +174,36 @@ export function usePlanesDelCatalogo(): PlanDelCatalogo[] | null {
             */
             requiresCohort: p.requiresCohort !== false,
             requiresScheduling: p.requiresScheduling === true,
+            classMode: typeof p.classMode === "string" ? p.classMode : null,
+            sessionsPerWeek: Number.isInteger(p.sessionsPerWeek) ? p.sessionsPerWeek : null,
+            liveClasses: typeof p.liveClasses === "boolean" ? p.liveClasses : null,
+            classDays: Array.isArray(p.classDays)
+              ? p.classDays.filter((d: unknown): d is number => Number.isInteger(d))
+              : [],
             hasLevels: p.hasLevels !== false,
           });
         }
         setPlanes(filas);
+        setEstado('listo');
       })
       .catch(() => {
-        /* fail-open: la página se queda con los planes que tienen copy propio */
+        /*
+          Sigue siendo fail-open para quien tenga copy propio (`/paso-tres` pinta
+          sus cuatro cards de respaldo), pero AHORA SE DICE. Tragárselo en
+          silencio es lo que dejaba a `/plan/<clave>` cargando para siempre.
+        */
+        if (cancelado) return;
+        setEstado('fallo');
       });
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [intento]);
 
-  return planes;
+  return { planes, estado, reintentar };
+}
+
+/** La lista a secas. Ver `useCatalogoDePlanes` para el porqué de las dos. */
+export function usePlanesDelCatalogo(): PlanDelCatalogo[] | null {
+  return useCatalogoDePlanes().planes;
 }

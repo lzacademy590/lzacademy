@@ -32,7 +32,31 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Cuántos días cubre un cobro. Espejo de `DIAS_DEL_PERIODO` de la plataforma. */
-const DIAS_DEL_PERIODO = 28;
+export const DIAS_DEL_PERIODO = 28;
+
+/**
+ * Cómo se rotula el cobro de un plan, según si SE REPITE.
+ *
+ * ⚠️⚠️ **Vive aquí y se exporta porque estaba escrito en DOS sitios y uno de los
+ * dos se quedó viejo.** Este componente ya corregía que la unidad no llevara el
+ * periodo en un pago único; la landing dinámica de `/plan/<clave>` tenía su
+ * propia copia y seguía pintando *"$210 USD / 28 días"* con *"Pago único · sin
+ * renovación automática"* justo debajo — la tarifa y su desmentido a dos
+ * centímetros, en el único dato con el que un adulto decide si mete la tarjeta.
+ *
+ * Es la misma pregunta contestada en dos sitios, que es como diverge todo en
+ * este repo. Si mañana el periodo deja de ser fijo, se cambia una vez.
+ */
+export function unidadDePrecio(recurrente: boolean): string {
+  // Nunca "/mes": cuando se repite, el ciclo es de 4 semanas (13,04 al año).
+  return recurrente ? ` USD / ${DIAS_DEL_PERIODO} días` : " USD";
+}
+
+export function notaDeCobro(recurrente: boolean): string {
+  return recurrente
+    ? `Facturación automática cada ${DIAS_DEL_PERIODO} días`
+    : `Pago único · cubre ${DIAS_DEL_PERIODO} días de acceso`;
+}
 
 export default function PrecioDelPlan({
   clave,
@@ -73,11 +97,8 @@ export default function PrecioDelPlan({
     periodo va DONDE significa algo: en la unidad si se repite, y dentro de la nota
     —"cubre 28 días"— si es un pago único.
   */
-  const unidad = recurrente ? ` USD / ${DIAS_DEL_PERIODO} días` : ' USD';
-
-  const nota = recurrente
-    ? `Facturación automática cada ${DIAS_DEL_PERIODO} días`
-    : `Pago único · cubre ${DIAS_DEL_PERIODO} días de acceso`;
+  const unidad = unidadDePrecio(recurrente);
+  const nota = notaDeCobro(recurrente);
 
   return (
     <>

@@ -97,8 +97,9 @@ export default function CuposPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Cupos por plan</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Define el tope de cupos de los planes con escasez (p. ej. Programa de Fluidez).
-            Al agotarse, la card se oculta del sitio y el checkout se bloquea automáticamente.
+            Cuántas plazas van usadas de los planes con escasez. El TOPE se define en la
+            plataforma (Admin › Planes); al agotarse, la card se oculta del sitio y el
+            checkout se bloquea automáticamente, aquí y en la plataforma.
           </p>
         </div>
         {saving ? (
@@ -114,7 +115,7 @@ export default function CuposPage() {
 
       {plans.length === 0 ? (
         <div className="rounded-2xl bg-white shadow-sm border border-gray-100 px-5 py-8 text-center text-sm text-gray-400">
-          No hay planes con cupos configurados.
+          No hay planes con cupos. Se les pone tope en la plataforma, en Admin › Planes.
         </div>
       ) : (
         <div className="space-y-5">
@@ -149,47 +150,33 @@ export default function CuposPage() {
                   </div>
                 </div>
 
-                <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <label className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-gray-700">Tope de cupos</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={cfg?.max ?? 0}
-                      onChange={(e) => setMax(plan, Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-                      className="w-24 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-falu-red-200"
-                    />
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleActivo(plan)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                        cfg?.activo ? "bg-emerald-500" : "bg-gray-200"
-                      }`}
-                    >
-                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                        cfg?.activo ? "translate-x-6" : "translate-x-1"
-                      }`} />
-                    </button>
-                    <span className={`text-xs font-medium w-16 ${cfg?.activo ? "text-emerald-600" : "text-gray-400"}`}>
-                      {cfg?.activo ? "Activo" : "Inactivo"}
-                    </span>
-                  </div>
+                {/*
+                  ⚠️⚠️ **Esta pantalla pasa a ser de SOLO LECTURA** (2026-09-07). El
+                  tope se declara ahora en la plataforma (Admin › Planes), donde vive
+                  el resto del contrato del plan —precio, recurrencia, cohorte, clases
+                  en vivo—, y desde donde también se le puede poner a un plan NUEVO:
+                  aquí la lista salía de `Object.keys(config)` y no tenía "añadir".
+
+                  Lo que sigue valiendo, y por eso no se retira la pantalla, es la
+                  mitad que la plataforma NO puede calcular: **usados y restantes**.
+                  Las compras viven en esta base.
+
+                  Dejarla editable habría sido dos sitios contestando la misma
+                  pregunta, y ganaría el último que guarde.
+                */}
+                <div className="px-5 py-4 flex items-center justify-between gap-4">
+                  <p className="text-xs text-gray-500">
+                    El tope se define en la plataforma, en <span className="font-semibold">Admin › Planes</span>.
+                    Aquí se ve cuántas plazas van usadas.
+                  </p>
+                  <span className={`shrink-0 text-xs font-medium ${cfg?.activo ? "text-emerald-600" : "text-gray-400"}`}>
+                    {cfg?.activo ? "Activo" : "Inactivo"}
+                  </span>
                 </div>
               </div>
             );
           })}
 
-          <div className="flex justify-end">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="rounded-xl bg-falu-red-600 hover:bg-falu-red-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 transition"
-            >
-              {saving ? "Guardando…" : "Guardar cambios"}
-            </button>
-          </div>
         </div>
       )}
     </div>

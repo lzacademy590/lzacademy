@@ -1,14 +1,26 @@
 "use client";
 
 import Image from "next/image";
+import { useFeaturesDelPlan } from "@/app/hooks/useFeaturesDelPlan";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import PrecioDelPlan from "@/app/components/PrecioDelPlan";
+import ClasesDelPlan from "@/app/components/ClasesDelPlan";
 
-const features = [
-  "3 sesiones privadas 1:1 por semana adaptadas a ti",
+/*
+  ⚠️ Esto ya NO es lo que se pinta: es el RESPALDO. Las viñetas las manda
+  Admin › Planes (ver `useFeaturesDelPlan`), igual que en las cards de
+  /paso-tres. Escritas aquí, esta página contradecía a la tarjeta que trae
+  hasta ella — visto en producción con Fluidez.
+*/
+const featuresDeRespaldo = [
+  // ⚠️ Decía "3 sesiones privadas 1:1 por semana" y el catálogo dice **1** — a un
+  // clic de la card, que sí lo deriva. La FRECUENCIA la pinta ahora
+  // `ClasesDelPlan` desde Admin › Planes, aquí abajo: escrita a mano vuelve a
+  // separarse del producto en cuanto el negocio la cambie.
+  "Sesiones privadas 1:1 adaptadas a ti",
   "1 sesión de práctica grupal cada viernes",
   "Acceso completo al Método 590",
   "Horario flexible para tus sesiones privadas",
@@ -19,6 +31,8 @@ const features = [
 ];
 
 function PersonalizadoPlanContent() {
+  // Las viñetas las manda Admin › Planes; el array de arriba es el respaldo.
+  const features = useFeaturesDelPlan("Personalizado", featuresDeRespaldo);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nivel = searchParams.get("nivel") ?? "";
@@ -115,7 +129,15 @@ function PersonalizadoPlanContent() {
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-5 text-[11.5px] lg:text-[13px] leading-relaxed italic" style={{ color: "#C0353E" }}>
+                  {/* La FRECUENCIA la manda Admin › Planes, igual que en la card
+                      de /paso-tres que trae aquí. Si el catálogo no la dice, no se
+                      pinta: prometer un número que el producto no cumple es lo que
+                      había —decía 3 y son 1—. */}
+                  <ClasesDelPlan
+                    clave="Personalizado"
+                    className="mt-5 text-[11.5px] lg:text-[13px] font-bold not-italic text-zinc-700"
+                  />
+                  <p className="mt-2 text-[11.5px] lg:text-[13px] leading-relaxed italic" style={{ color: "#C0353E" }}>
                     Agendas tu primera sesión y definimos juntos el plan. Accede hoy a la plataforma. Las clases en vivo inician en la fecha seleccionada en el formulario.
                   </p>
                 </div>

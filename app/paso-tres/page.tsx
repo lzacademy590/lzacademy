@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PreguntasFrecuentes from "@/app/components/Questions";
 import { TestimonialsSection } from "@/app/components/Testimonials";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
+import { fraseDeClases } from "@/app/lib/dias-de-clase";
 import {
   usePlanesDelCatalogo,
   precioEtiqueta,
@@ -90,7 +91,11 @@ const PRESENTACION: Record<string, Presentacion> = {
     muñeca: "/muñecapaso3premium.webp",
     features: [
       "Acceso completo al Método 590",
-      "1 hora de clase diaria (lunes a jueves)",
+      // Los días NO van escritos aquí: los manda el catálogo y se pintan en su
+      // propia línea (`clasesLinea`). Escritos en la viñeta se contradecían con
+      // la landing de Premium, que decía "lunes a miércoles". La frecuencia y
+      // los días los pinta `ClasesDelPlan` desde el catálogo, aquí abajo.
+      "1 hora de clase en vivo",
       "Reuniones de práctica los viernes",
       "Explicación clara de teoría",
       "Práctica guiada en cada clase",
@@ -114,7 +119,7 @@ const PRESENTACION: Record<string, Presentacion> = {
     route: "/personalizado",
     muñeca: "/muñecapaso3personalizada.webp",
     features: [
-      "3 sesiones privadas 1:1 por semana adaptadas a ti",
+      "Sesiones privadas 1:1 adaptadas a ti",
       "1 sesión de práctica grupal cada viernes",
       "Acceso completo al Método 590",
       "Horario flexible para tus sesiones privadas",
@@ -216,6 +221,179 @@ const PLATAFORMA_URL =
   process.env.NEXT_PUBLIC_PLATFORM_URL || "https://app.lainz590.com";
 
 
+/**
+ * A dónde manda un plan que no tiene landing escrita a mano.
+ *
+ * ⚠️⚠️ **Lo usan la CARTA y la RAMA elegida, y por eso vive aquí.** Estaba escrito
+ * en línea dentro de la carta, así que la escalera cambiaba el precio y NO el
+ * destino: elegir "5 clases por semana · $210" y pulsar Seleccionar llevaba a la
+ * landing de la BASE, que anuncia $120. Medido en el navegador, no leyendo.
+ *
+ * La base con copy propio conserva su landing escrita a mano (`/personalizado`);
+ * esto es para las ramas y para los planes abiertos en el admin.
+ */
+function rutaDelPlan(clave: string, soloEnPlataforma?: boolean): string {
+  return soloEnPlataforma
+    ? `${PLATAFORMA_URL}/pricing?plan=${encodeURIComponent(clave)}`
+    : `/plan/${clave.toLowerCase()}`;
+}
+
+/**
+ * La ESCALERA de una familia: sus ramas en filas, cada una con su precio.
+ *
+ * ⚠️ Antes esto era un precio grande con un selector de pastillas debajo, y
+ * comparar $150 con $210 obligaba a tocar, leer, tocar otra vez y ACORDARSE —
+ * el patrón de un selector de talla, donde el precio no cambia, aplicado justo
+ * a algo en lo que lo que cambia ES el precio. (Decisión de negocio del
+ * 2026-09-08; la plataforma monta la misma escalera en `/pricing`.)
+ *
+ * ⚠️ **Vive aquí y se monta en las DOS rejillas** —la de móvil y el reverso de
+ * la carta que gira—. Es la misma lección que dejó escrita la resolución de la
+ * rama: dos copias es como acaban enseñando precios distintos del mismo plan.
+ *
+ * ⚠️ Deja de servir a partir de unas seis ramas: la carta crece con cada una.
+ * Ese día la salida no es volver a las pastillas, es mover la elección al
+ * checkout, que ya pregunta nivel y fecha.
+ */
+/**
+ * `inert` para la cara que NO se está viendo.
+ *
+ * ⚠️⚠️ **`backface-visibility: hidden` esconde, pero no saca del tabulador.**
+ * Sin esto, un usuario de teclado recorría los controles de la cara oculta sin
+ * verlos: medido, se llegaba a marcar la rama de $210 con la carta enseñando su
+ * frente todo el rato y el precio por defecto en $120, y desde ahí al checkout.
+ * Antes detrás de la carta había un botón; con la escalera hay CUATRO controles
+ * de precio, así que el hueco pasó de molesto a cambiar lo que se compra.
+ *
+ * ⚠️⚠️ **Va como BOOLEANO, y averiguarlo costó una verificación entera mal
+ * hecha.** El `package.json` de este proyecto declara React 18.2 y en
+ * `node_modules/react` hay un 18.3.1 — pero el App Router de **Next 16 corre
+ * la React que Next trae DENTRO, que es la 19**. Son dos Reacts distintas en
+ * el mismo repositorio, y se comportan al revés la una de la otra:
+ *
+ * ```
+ *              inert=""        inert={true}
+ *   React 18   lo renderiza    lo DESCARTA (con aviso)
+ *   React 19   lo DESCARTA     lo renderiza
+ * ```
+ *
+ * La primera versión usó la cadena, comprobada contra el `react-dom/server`
+ * del `node_modules` — o sea contra la React que esta página NO usa. Compilaba,
+ * el test decía que sí, y en el navegador el atributo **no aparecía**: medido,
+ * 0 de 4 reversos con `inert`. Con el booleano, 4 de 4.
+ *
+ * ⚠️ Si alguien alinea las versiones del `package.json` con la realidad, esto
+ * NO cambia: lo que manda es la React de Next. Y si algún día se bajara de
+ * Next 16, hay que volver a medirlo EN EL NAVEGADOR, no en un script de node.
+ */
+function inertSiOculta(oculta: boolean) {
+  return { inert: oculta ? true : undefined };
+}
+
+function EscaleraDeRamas({
+  ramas,
+  elegidaKey,
+  onElegir,
+  colorTexto,
+  colorBorde,
+  fondoActivo,
+  textoActivo,
+}: {
+  ramas: {
+    key: string;
+    label: string;
+    priceCents: number;
+    features: string[];
+    sessionsPerWeek?: number | null;
+  }[];
+  elegidaKey: string | undefined;
+  onElegir: (key: string) => void;
+  colorTexto: string;
+  colorBorde: string;
+  fondoActivo: string;
+  textoActivo: string;
+}) {
+  /*
+    `role="radio"` ANUNCIA un contrato: las flechas mueven la selección y el
+    foco la sigue. Con Tab también se opera, pero un grupo que se presenta como
+    radiogroup y no responde a las flechas se lee como que la página está rota.
+  */
+  const teclado = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const paso =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const i = ramas.findIndex((r) => r.key === elegidaKey);
+    const j = (Math.max(i, 0) + paso + ramas.length) % ramas.length;
+    onElegir(ramas[j].key);
+    e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')[j]?.focus();
+  };
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Elige cuántas clases por semana"
+      onKeyDown={teclado}
+      className="flex w-full flex-col gap-1.5"
+    >
+      {ramas.map((r, i) => {
+        const activa = r.key === elegidaKey;
+        /*
+          ⚠️ Lo que añade sobre la fila ANTERIOR, no sobre la base: contra la
+          base, todas las ramas de arriba abren con la MISMA viñeta y lo que de
+          verdad las distingue queda escondido. En una escalera, cada peldaño
+          dice lo que añade el peldaño.
+        */
+        const previas = new Set(ramas[i - 1]?.features ?? r.features);
+        const suya = r.features.find((f) => !previas.has(f));
+        return (
+          <button
+            key={r.key}
+            type="button"
+            role="radio"
+            aria-checked={activa}
+            tabIndex={activa ? 0 : -1}
+            onClick={(e) => {
+              // En escritorio la escalera vive DENTRO de la carta que gira: sin
+              // esto, elegir una fila la voltea.
+              e.stopPropagation();
+              onElegir(r.key);
+            }}
+            className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition"
+            style={
+              activa
+                ? { backgroundColor: fondoActivo, color: textoActivo }
+                : { border: `1.5px solid ${colorBorde}`, color: colorTexto }
+            }
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-extrabold leading-tight">
+                {r.sessionsPerWeek
+                  ? r.sessionsPerWeek === 1
+                    ? "1 clase por semana"
+                    : `${r.sessionsPerWeek} clases por semana`
+                  : r.label}
+              </span>
+              {suya && (
+                <span className="mt-0.5 block text-[10.5px] font-semibold leading-tight opacity-75">
+                  + {suya}
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 text-[15px] font-extrabold tabular-nums">
+              {precioEtiqueta(r.priceCents)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function PasosTresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -247,6 +425,12 @@ function PasosTresContent() {
         soloEnPlataforma: false,
         origenPlataforma: false,
         features: [] as string[],
+        // Sin catálogo no se sabe: `null` calla la línea de clases en vez de
+        // anunciar que ningún plan tiene. Ver `fraseDeClases`.
+        liveClasses: null as boolean | null,
+        classDays: [] as number[],
+        classMode: null as string | null,
+        sessionsPerWeek: null as number | null,
       }));
 
     return filas
@@ -262,6 +446,21 @@ function PasosTresContent() {
         dónde se cobra.
       */
       .filter((f) => PRESENTACION[f.key] || f.origenPlataforma)
+      /*
+        ⚠️ **Las RAMAS no son cartas: van dentro de la de su base.** Un plan con
+        `family` distinto de su propia clave se pinta como una opción dentro de
+        la carta de su familia, no al lado. Sin esto, abrir cuatro ramas del
+        Personalizado llenaría la rejilla de tarjetas casi idénticas — que es
+        exactamente lo que la familia viene a evitar.
+
+        ⚠️ Una rama HUÉRFANA —su base no está en el catálogo— sí se pinta sola:
+        perder un plan comprable en silencio es peor que enseñarlo sin familia.
+      */
+      .filter((f) => {
+        const familia = (f as { family?: string | null }).family;
+        if (!familia || familia === f.key) return true;
+        return !filas.some((o) => o.key === familia);
+      })
       .map((f) => {
         const arte = PRESENTACION[f.key];
         const base = arte ?? {
@@ -277,12 +476,25 @@ function PasosTresContent() {
             2026-09-06; el respaldo a la plataforma sigue abajo, para el plan que
             este backend NO sabe cobrar.
           */
-          route: f.soloEnPlataforma
-            ? `${PLATAFORMA_URL}/pricing?plan=${encodeURIComponent(f.key)}`
-            : `/plan/${f.key.toLowerCase()}`,
+          route: rutaDelPlan(f.key, f.soloEnPlataforma),
         };
+        /*
+          Las ramas de esta familia, de más barata a más cara. La base incluida:
+          es la primera opción del selector, no un caso aparte.
+        */
+        const ramas = filas
+          .filter((o) => {
+            const fam = (o as { family?: string | null }).family;
+            return fam ? fam === f.key : o.key === f.key;
+          })
+          .sort((a, b) => a.priceCents - b.priceCents);
+
         return {
           ...base,
+          // La clave del CATÁLOGO (la carta se identifica por `id`, que es el de
+          // la presentación). La necesita el selector de ramas.
+          claveDelPlan: f.key,
+          ramas: ramas.length > 1 ? ramas : [],
           // El nombre sale del catálogo cuando no hay copy propio: es lo que el
           // admin tecleó, y el salto de línea de los nombres de siempre no se
           // puede inventar para un plan nuevo.
@@ -303,14 +515,119 @@ function PasosTresContent() {
           billingNote: f.recurring
             ? "Facturación automática cada 4 semanas"
             : "Pago único · sin renovación automática",
-          // El copy local gana; el del admin rellena al plan que no lo tiene.
-          features: base.features.length ? base.features : f.features,
+          /*
+            ⚠️⚠️ **Manda el CATÁLOGO; el copy local rellena al plan que no lo trae.**
+            Estaba al revés, y era una decisión mía equivocada: la razoné como "no
+            empeorar la página que vende" y el efecto era que el admin editaba las
+            viñetas de un plan y **el website no se enteraba**. Medido en producción,
+            Essential tenía 6 viñetas aquí y 3 en la plataforma, **sin una sola en
+            común**; lo mismo Premium (9 contra 3). El mismo plan descrito con
+            palabras distintas en las dos pantallas que lo venden.
+
+            El negocio pidió una sola fuente —el panel— y esto es lo que la hace
+            valer. El formato ya era compatible: los dos son `string[]` y el legacy
+            venía sirviendo las de la plataforma desde antes.
+
+            ⚠️ **Dependencia de despliegue**: las viñetas ricas de `PRESENTACION` se
+            copiaron a Admin › Planes ANTES de invertir esto. Si se despliega con el
+            panel sin enriquecer, las cards caen a 3 viñetas — el catálogo no está
+            vacío, así que el respaldo local no se activa.
+          */
+          features: f.features.length ? f.features : base.features,
+          /*
+            ⚠️ **Los días de clase van en su propia línea, no dentro de una
+            viñeta**, y el motivo es que las viñetas del catálogo GANAN sobre el
+            copy local: los días acabarían dependiendo de que alguien los teclee
+            bien en Admin › Planes, que es justo lo que se venía haciendo mal.
+            Esto sale de `Plan.diasDeClase`, así que no se puede quedar viejo.
+          */
+          clasesLinea: fraseDeClases(f.liveClasses ?? null, f.classDays ?? [], f.classMode ?? null, f.sessionsPerWeek ?? null),
           externo: !arte,
         };
       });
   }, [catalogo]);
 
-  const visiblePlans = plans.filter((p) => p.id !== "fluidez" || isPlanAvailable("Fluidez"));
+  /** Rama elegida dentro de cada familia. Sin elección manda la más barata. */
+  const [ramaPorFamilia, setRamaPorFamilia] = useState<Record<string, string>>({});
+
+  /**
+   * La carta, ya resuelta a la rama que el comprador está mirando.
+   *
+   * ⚠️ El precio, la nota de cobro y las viñetas salen de la RAMA; el nombre, el
+   * arte y la ruta, de la carta. La familia solo agrupa la presentación: lo que
+   * se compra y se cobra sigue siendo un plan concreto.
+   */
+  function conLaRamaElegida<
+    R extends { key: string; label: string; priceCents: number; features: string[] },
+    T extends { claveDelPlan?: string; ramas?: R[] },
+  >(carta: T): { ramas: R[]; elegida: R | null } {
+    const ramas = carta.ramas ?? [];
+    // Una sola rama es un plan suelto: la carta se pinta exactamente como siempre.
+    if (ramas.length < 2) return { ramas: [], elegida: null };
+    const clave = String(carta.claveDelPlan ?? "");
+    return {
+      ramas,
+      elegida: ramas.find((r) => r.key === ramaPorFamilia[clave]) ?? ramas[0],
+    };
+  }
+
+  const visiblePlans = plans
+    .filter((p) => p.id !== "fluidez" || isPlanAvailable("Fluidez"))
+    /*
+      ⚠️ La rama se resuelve AQUÍ, una vez, y no dentro de cada rejilla: hay dos
+      —móvil y escritorio— y resolverla en cada una es cómo acaban enseñando
+      precios distintos del mismo plan.
+
+      El precio y las viñetas salen de la RAMA; el nombre, el arte y la ruta, de
+      la carta. La familia agrupa la presentación: lo que se compra sigue siendo
+      un plan concreto.
+    */
+    .map((p) => {
+      const { ramas, elegida } = conLaRamaElegida(p);
+      if (!elegida)
+        return {
+          ...p,
+          esFamilia: false,
+          escaleraDiceFrecuencia: false,
+          elegida: null as typeof elegida,
+        };
+      return {
+        ...p,
+        /*
+          Se resuelve AQUÍ y viaja en la carta por lo mismo que la rama: hay dos
+          rejillas —móvil y escritorio— y preguntarlo en cada una es como acaban
+          pintando cosas distintas del mismo plan.
+        */
+        esFamilia: true,
+        /*
+          ¿La escalera ya dice la frecuencia? Se resuelve aquí, con la rama, y no
+          en las dos rejillas: la condición de arriba es exactamente la que decide
+          qué rótulo pinta cada fila, y separarlas es como acaban discrepando.
+        */
+        escaleraDiceFrecuencia: !!(
+          elegida as { sessionsPerWeek?: number | null }
+        ).sessionsPerWeek,
+        price: precioEtiqueta(elegida.priceCents),
+        features: elegida.features.length ? elegida.features : p.features,
+        /*
+          ⚠️⚠️ **Y la RUTA también sale de la rama.** Sin esto la escalera cambiaba
+          el precio y no el destino: elegir "5 clases por semana · $210" y pulsar
+          Seleccionar llevaba a la landing de la BASE, que anuncia $120 — o sea que
+          "elegir es comprar" era falso justo en el clic que compra.
+
+          La base conserva la suya, que es la landing escrita a mano; una rama no
+          tiene copy propio y va a la genérica, que se arma con el catálogo.
+        */
+        route:
+          elegida.key === p.claveDelPlan
+            ? p.route
+            : rutaDelPlan(
+                elegida.key,
+                (elegida as { soloEnPlataforma?: boolean }).soloEnPlataforma,
+              ),
+        elegida,
+      };
+    });
 
   // Texto del badge: para Fluidez usa el conteo real de cupos cuando está disponible.
   function badgeText(plan: (typeof plans)[number]): string | undefined {
@@ -403,12 +720,22 @@ function PasosTresContent() {
                     {plan.name}
                   </p>
                   <div className="text-right shrink-0 ml-4">
-                    <p className="text-3xl font-extrabold leading-none" style={{ color: plan.nameColor }}>
-                      {plan.price}
-                    </p>
-                    <p className="text-[11px] font-bold opacity-70 mt-0.5" style={{ color: plan.nameColor }}>
-                      {plan.priceUnit}
-                    </p>
+                    {/*
+                      ⚠️ **En una FAMILIA no hay un precio grande: hay una escalera.**
+                      El precio de cada rama va en su fila, unas líneas más abajo.
+                      Repetirlo aquí sería el mismo dato en dos sitios de la misma
+                      carta, que es como acaban discrepando.
+                    */}
+                    {!plan.esFamilia && (
+                      <>
+                        <p className="text-3xl font-extrabold leading-none" style={{ color: plan.nameColor }}>
+                          {plan.price}
+                        </p>
+                        <p className="text-[11px] font-bold opacity-70 mt-0.5" style={{ color: plan.nameColor }}>
+                          {plan.priceUnit}
+                        </p>
+                      </>
+                    )}
                     {plan.billingNote && (
                       <p className="text-[10px] font-medium opacity-55 mt-0.5 max-w-[120px] ml-auto leading-tight" style={{ color: plan.nameColor }}>
                         {plan.billingNote}
@@ -417,9 +744,47 @@ function PasosTresContent() {
                   </div>
                 </div>
 
+                {/* La escalera va ANCHA y bajo el nombre: en la columna derecha,
+                    junto al precio, las cuatro filas quedaban en 120 px. */}
+                {plan.esFamilia && "ramas" in plan && (
+                  <div className="mb-3">
+                    <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60" style={{ color: plan.nameColor }}>
+                      Elige cuántas clases por semana
+                    </p>
+                    <EscaleraDeRamas
+                      ramas={plan.ramas}
+                      elegidaKey={plan.elegida?.key}
+                      onElegir={(key) =>
+                        setRamaPorFamilia((prev) => ({
+                          ...prev,
+                          [String(plan.claveDelPlan ?? "")]: key,
+                        }))
+                      }
+                      colorTexto={plan.nameColor}
+                      colorBorde={plan.checkColor}
+                      /*
+                        ⚠️ La fila marcada INVIERTE los colores de la carta, no se
+                        rellena de blanco: en Premium y Personalizado el texto de la
+                        carta YA es blanco (`nameColor: "#fff"`), así que un
+                        `textoActivo="#fff"` dejaba la opción elegida en blanco sobre
+                        blanco — invisible, y justo la que el comprador acaba de
+                        tocar. Invertir contrasta siempre, porque `nameColor` se
+                        elige legible sobre `cardBg`.
+                      */
+                      fondoActivo={plan.nameColor}
+                      textoActivo={plan.cardBg}
+                    />
+                  </div>
+                )}
+
                 {plan.subtitle && (
                   <p className="text-[11px] font-semibold mb-2 opacity-70" style={{ color: plan.nameColor }}>
                     {plan.subtitle}
+                  </p>
+                )}
+                {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
+                  <p className="text-[11px] font-bold mb-2" style={{ color: plan.nameColor }}>
+                    {plan.clasesLinea}
                   </p>
                 )}
 
@@ -500,6 +865,7 @@ function PasosTresContent() {
                 >
                   {/* FRENTE */}
                   <div
+                    {...inertSiOculta(!!flipped[plan.id])}
                     className="rounded-3xl px-6 py-5 flex flex-col shadow-lg"
                     style={{
                       position: "absolute",
@@ -516,6 +882,11 @@ function PasosTresContent() {
                     {plan.subtitle && (
                       <p className="text-[12px] font-semibold mb-2 opacity-70" style={{ color: plan.nameColor }}>
                         {plan.subtitle}
+                      </p>
+                    )}
+                    {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
+                      <p className="text-[12px] font-bold mb-2" style={{ color: plan.nameColor }}>
+                        {plan.clasesLinea}
                       </p>
                     )}
                     <ul className="flex flex-col gap-2 flex-1">
@@ -552,6 +923,7 @@ function PasosTresContent() {
 
                   {/* REVERSO */}
                   <div
+                    {...inertSiOculta(!flipped[plan.id])}
                     className="rounded-3xl px-6 py-5 flex flex-col items-center justify-center shadow-lg"
                     style={{
                       position: "absolute",
@@ -565,12 +937,41 @@ function PasosTresContent() {
                     <p className="text-[12px] font-extrabold uppercase tracking-widest mb-2 opacity-70" style={{ color: "#fff" }}>
                       {plan.name.replace("\n", " ")}
                     </p>
-                    <p className="font-extrabold leading-none" style={{ color: "#fff", fontSize: "76px" }}>
-                      {plan.price}
-                    </p>
-                    <p className="text-[13px] font-bold mt-1 opacity-80" style={{ color: "#fff" }}>
-                      {plan.priceUnit}
-                    </p>
+                    {/*
+                      ⚠️ En una FAMILIA, la escalera SUSTITUYE al precio de 76 px:
+                      cada fila lleva el suyo. Ver `EscaleraDeRamas`.
+
+                      Los colores se invierten respecto a la carta de móvil porque
+                      aquí el fondo es oscuro: la fila marcada va en blanco con el
+                      color del plan, igual que el botón "Seleccionar" de abajo.
+                    */}
+                    {plan.esFamilia && "ramas" in plan ? (
+                      <div className="w-full max-w-[280px]">
+                        <EscaleraDeRamas
+                          ramas={plan.ramas}
+                          elegidaKey={plan.elegida?.key}
+                          onElegir={(key) =>
+                            setRamaPorFamilia((prev) => ({
+                              ...prev,
+                              [String(plan.claveDelPlan ?? "")]: key,
+                            }))
+                          }
+                          colorTexto="#fff"
+                          colorBorde="rgba(255,255,255,0.45)"
+                          fondoActivo="#fff"
+                          textoActivo={plan.btnColor}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-extrabold leading-none" style={{ color: "#fff", fontSize: "76px" }}>
+                          {plan.price}
+                        </p>
+                        <p className="text-[13px] font-bold mt-1 opacity-80" style={{ color: "#fff" }}>
+                          {plan.priceUnit}
+                        </p>
+                      </>
+                    )}
                     {plan.billingNote && (
                       <p className="text-[11px] font-medium mt-1.5 opacity-60 text-center max-w-[180px]" style={{ color: "#fff" }}>
                         {plan.billingNote}

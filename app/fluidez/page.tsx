@@ -1,13 +1,20 @@
 "use client";
 
 import Image from "next/image";
+import { useFeaturesDelPlan } from "@/app/hooks/useFeaturesDelPlan";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import PrecioDelPlan from "@/app/components/PrecioDelPlan";
 
-const features = [
+/*
+  ⚠️ Esto ya NO es lo que se pinta: es el RESPALDO. Las viñetas las manda
+  Admin › Planes (ver `useFeaturesDelPlan`), igual que en las cards de
+  /paso-tres. Escritas aquí, esta página contradecía a la tarjeta que trae
+  hasta ella — visto en producción con Fluidez.
+*/
+const featuresDeRespaldo = [
       "1 Sesión de coaching enfocado en speaking 1:1 semanal",
       "Acceso completo al Método 590",
       "Comunidad en Whatsapp",
@@ -22,6 +29,8 @@ const features = [
 const ACCENT = "#8a1f3d";
 
 function FluidezPlanContent() {
+  // Las viñetas las manda Admin › Planes; el array de arriba es el respaldo.
+  const features = useFeaturesDelPlan("Fluidez", featuresDeRespaldo);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nivel = searchParams.get("nivel") ?? "";
