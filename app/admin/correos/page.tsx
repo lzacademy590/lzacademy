@@ -250,8 +250,12 @@ export default function CorreosMasivos() {
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
                             placeholder="Ej. ¿Lista para empezar tu inglés?"
-                            className="w-full p-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-orange-400 mb-4"
+                            className="w-full p-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-orange-400"
                         />
+                        <p className="text-xs text-gray-500 mt-1 mb-4">
+                            Es también el <strong>titular</strong> que se ve dentro del correo, y admite{" "}
+                            <code className="bg-gray-100 px-1 rounded">{"{nombre}"}</code>.
+                        </p>
 
                         <label className="block text-xs font-medium text-gray-500 mb-1">Cuerpo del correo</label>
                         <textarea
@@ -272,11 +276,19 @@ export default function CorreosMasivos() {
                                     Vista previa <span className="text-gray-400">(con un nombre de ejemplo)</span>
                                 </p>
                                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                    {/*
+                                        El asunto se sustituye AQUÍ TAMBIÉN desde que
+                                        vale `{nombre}` en él: enseñándolo crudo, el
+                                        panel diría "{nombre}" y el correo "María".
+                                        Y con la misma regex que el backend (`gi`).
+                                    */}
                                     {subject.trim() && (
-                                        <p className="text-sm font-semibold text-gray-800 mb-2">{subject.trim()}</p>
+                                        <p className="text-sm font-semibold text-gray-800 mb-2">
+                                            {subject.trim().replace(/\{nombre\}/gi, "María")}
+                                        </p>
                                     )}
                                     <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                                        {(body || "").replace(/\{nombre\}/g, "María")}
+                                        {(body || "").replace(/\{nombre\}/gi, "María")}
                                     </p>
                                 </div>
                             </div>
