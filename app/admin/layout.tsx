@@ -115,6 +115,7 @@ const navGroups: NavGroup[] = [
     title: "Configuración",
     items: [
       { label: "Contenido", href: "/admin/contenido", icon: ICON.doc },
+      { label: "Textos de los correos", href: "/admin/correo-interes", icon: ICON.mail },
       { label: "Fechas de inicio", href: "/admin/fechas", icon: ICON.calendar },
       { label: "Niveles por plan", href: "/admin/niveles", icon: ICON.layers },
       { label: "Cupos por plan", href: "/admin/cupos", icon: ICON.ticket },
