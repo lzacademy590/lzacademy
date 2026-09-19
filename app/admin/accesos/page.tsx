@@ -2,7 +2,7 @@
 
 const ACCESOS_ENABLED = true;
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
@@ -53,8 +53,11 @@ const LEVEL_LABELS: Record<string, string> = {
     "Intermedio alto-produccion": "B2.2",
 };
 
-// Planes con niveles, derivados del catálogo único de planes.
-const PLANS = LEVELED_PLAN_KEYS;
+/**
+ * Planes con niveles que este front conoce **de memoria**. Es el RESPALDO de las
+ * pestañas de "Links de acceso", no su fuente: ver `planesConAccesos`.
+ */
+const PLANES_DE_RESPALDO = LEVELED_PLAN_KEYS;
 
 const LEVEL_BADGE: Record<string, { bg: string; text: string; label: string }> = {
     "Principiante":               { bg: "bg-emerald-100", text: "text-emerald-700", label: "A1" },
@@ -157,6 +160,42 @@ export default function AccesosPage() {
     }, [router]);
 
     useEffect(() => { load(); }, [load]);
+
+    /*
+      QUÉ PLANES TIENEN FICHA DE ACCESOS, y por qué no es una constante.
+
+      ⚠️⚠️ Esta pestaña se armaba con `LEVELED_PLAN_KEYS`, los cuatro que
+      `plans.ts` define, así que un plan abierto en Admin › Planes **no tenía
+      dónde escribir su grupo de WhatsApp ni su classroom**. Se vio con
+      PERSONALIZED_PLUS: se vendía, se cobraba y su ficha de accesos no existía
+      en ninguna pantalla.
+
+      Lo correcto ya lo contestaba el BACKEND: `getAccessLinks()` recorre
+      `LEVELED_PLANS`, que `insertarPlanAdoptado` muta EN SITIO al adoptar un
+      plan, y devuelve una entrada por cada uno. O sea que la respuesta ya venía
+      en el payload y esta pantalla la estaba ignorando para preguntarle a una
+      constante. Derivarlo de aquí no puede divergir de lo que se guarda.
+
+      ⚠️ Incluye también los planes RETIRADOS de la venta, y hace falta: sus
+      alumnos siguen existiendo y hay que poder reenviarles sus accesos.
+
+      ⚠️ Un payload vacío significa "todavía no cargó" o "falló la red", nunca
+      "no hay planes": ahí se cae a la lista local, que es el fail-open del resto
+      del sitio. Un modal de configuración sin ninguna pestaña se lee como roto.
+    */
+    const planesConAccesos = useMemo(() => {
+        const delServidor = Object.keys(configDraft);
+        return delServidor.length ? delServidor : PLANES_DE_RESPALDO;
+    }, [configDraft]);
+
+    // La pestaña abierta tiene que existir en la lista de verdad. Sin esto, el
+    // "Essential" del estado inicial se queda seleccionado aunque el backend
+    // devuelva otra cosa, y los campos de abajo editan un plan sin pestaña.
+    useEffect(() => {
+        if (planesConAccesos.length && !planesConAccesos.includes(configPlan)) {
+            setConfigPlan(planesConAccesos[0]);
+        }
+    }, [planesConAccesos, configPlan]);
 
     const showToast = (id: number, name: string, ok: boolean) => {
         setToast({ id, name, ok });
@@ -353,13 +392,16 @@ export default function AccesosPage() {
 
                         {/* Plan tabs */}
                         <div className="px-6 pt-4 pb-3 flex-shrink-0">
-                            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                                {PLANS.map(p => {
+                            {/* flex-wrap y min-w: con cuatro pestañas `flex-1` bastaba, pero la
+                                clave de un plan adoptado es larga ("PERSONALIZED_PLUS") y a
+                                partir de la quinta se aplastaban hasta no leerse. */}
+                            <div className="flex flex-wrap gap-1 bg-gray-100 rounded-xl p-1">
+                                {planesConAccesos.map(p => {
                                     const planLevels = configDraft[p] ?? {};
                                     const configured = LEVELS.filter(l => planLevels[l]?.whatsapp_link || planLevels[l]?.classroom_link).length;
                                     return (
                                         <button key={p} onClick={() => setConfigPlan(p)}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all relative ${configPlan === p ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                                            className={`flex-1 min-w-[7.5rem] px-2 py-2 rounded-lg text-xs font-semibold transition-all relative ${configPlan === p ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
                                             {p}
                                             <span className={`block text-[10px] font-normal mt-0.5 ${configPlan === p ? (configured === LEVELS.length ? "text-emerald-500" : "text-amber-500") : "text-gray-400"}`}>
                                                 {configured}/{LEVELS.length}
