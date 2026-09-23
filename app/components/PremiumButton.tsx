@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useStartDates } from "../hooks/useStartDates";
 import { planPriceDisplay } from "@/app/lib/plans";
+import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
@@ -120,8 +121,11 @@ export default function PremiumButton() {
           description: `Plan Premium — ${selectedLevel.label}`,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || "No se pudo crear la sesión de pago.");
+      const { data, saturado } = await leerRespuesta(res);
+      // ⚠️ El 429 del limitador NO viene en JSON: antes reventaba el parseo y
+      // caía al catch, que aquí pinta `err.message`. Ver lib/respuesta-del-backend.
+      if (saturado) throw new Error(MENSAJE_SATURADO);
+      if (!res.ok || !data?.url) throw new Error(data?.error || "No se pudo crear la sesión de pago.");
       window.location.href = data.url;
     } catch (err: any) {
       setError(err.message || "Error al procesar. Intenta nuevamente.");
