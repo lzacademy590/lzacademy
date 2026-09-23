@@ -4,7 +4,7 @@ import Card from "../components/Card";
 import Pill from "../components/Pill";
 
 export const metadata = {
-    title: "Nuestro propósito | LZ English Academy",
+    title: "Nuestro propósito",
     description:
         "Un porcentaje de cada inscripción al Método 590 se destina a la Fundación LZ para financiar la educación de niños y niñas en situación vulnerable en Honduras.",
     alternates: { canonical: "https://lz-englishacademy.com/fundacion" },
