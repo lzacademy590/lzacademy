@@ -1,7 +1,8 @@
 import InterestForm from "../components/InterestForm";
 
 export const metadata = {
-    title: "Da el primer paso — LZ English Academy",
+    // Sin la marca: la pone el `template` del layout raíz ("%s | LZ English Academy").
+    title: "Da el primer paso",
     description:
         "Regístrate y recibe información detallada sobre el Método 590. Sin costo, sin compromiso.",
     alternates: { canonical: "https://lz-englishacademy.com/interes" },

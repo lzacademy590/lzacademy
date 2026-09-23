@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Plan Premium | LZ English Academy",
+  title: "Plan Premium",
   description:
     "El Plan Premium incluye clases en vivo con instructora, seguimiento personalizado y práctica hablada para alcanzar fluidez real en inglés con el Método 590.",
   alternates: { canonical: "https://lz-englishacademy.com/premium" },
