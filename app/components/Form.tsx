@@ -6,6 +6,7 @@ import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
 import { pideHorario, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
+import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 
 interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
 
@@ -314,8 +315,16 @@ const PaymentForm = ({
                     motive: selectedDificultades || "no especificado",
                 }),
             });
-            const data = await res.json();
+            const { data, saturado } = await leerRespuesta(res);
             if (!res.ok) {
+                // ⚠️ Backend saturado (429): no es un fallo del pago, y el 429
+                // NO viene en JSON — antes reventaba el parseo y el comprador
+                // leía el error genérico de tarjeta. Ver lib/respuesta-del-backend.
+                if (saturado) {
+                    setError(MENSAJE_SATURADO);
+                    setLoading(false);
+                    return;
+                }
                 // Plan sin cupos: mensaje claro en vez del error genérico de pago.
                 if (res.status === 409 && data?.code === "PLAN_SOLD_OUT") {
                     setError("Este plan ya no tiene cupos disponibles.");
@@ -324,6 +333,9 @@ const PaymentForm = ({
                 }
                 throw new Error(data?.error || "Error creando sesión");
             }
+            // Un 200 sin `url` no es navegable: sin esto se acababa yendo a la
+            // ruta literal "undefined" en vez de a Stripe.
+            if (!data?.url) throw new Error("Error creando sesión");
             window.location.href = data.url;
         } catch (err: any) {
             console.error("Error Checkout:", err);
