@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Plan Essential | LZ English Academy",
+  title: "Plan Essential",
   description:
     "Accede al Método 590 con el Plan Essential desde $10/mes. Plataforma completa, comunidad en WhatsApp, material organizado y reuniones de práctica los viernes.",
   alternates: { canonical: "https://lz-englishacademy.com/essential" },

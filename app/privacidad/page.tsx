@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Container } from "../components/Container";
+import { PestanasLegales } from "../legal/_components/legal";
 
-const LAST_UPDATED = "21 de mayo de 2026";
+const LAST_UPDATED = "22 de septiembre de 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -26,6 +27,9 @@ export default function PrivacidadPage() {
         <div className="pointer-events-none absolute -bottom-28 right-10 h-72 w-72 rounded-full bg-yellow-orange-300/14 blur-3xl" />
         <Container>
           <div className="relative mx-auto max-w-3xl py-12 sm:py-16">
+            <div className="mb-8">
+              <PestanasLegales activa="sitio" />
+            </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-falu-red-700">
               LZ English Academy — Método 590
             </p>
@@ -58,6 +62,18 @@ export default function PrivacidadPage() {
                 El Servicio es operado por <strong>LainZ590</strong>. Al
                 inscribirte y utilizar el Servicio, declaras que has leído y entendido esta
                 Política.
+              </p>
+              <p>
+                Esta Política cubre el sitio web y la inscripción. Los datos que se tratan al
+                estudiar en la plataforma de aprendizaje (grabaciones de voz, fotos, textos,
+                comunidad, uso de inteligencia artificial) se explican en la{" "}
+                <Link
+                  href="/legal/plataforma/privacidad"
+                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                >
+                  Política de Privacidad de la Plataforma
+                </Link>
+                .
               </p>
             </div>
 

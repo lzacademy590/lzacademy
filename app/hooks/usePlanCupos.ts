@@ -1,59 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import {
+  useMapasDelCatalogo,
+  refrescarCatalogo,
+  type CuposDelPlan,
+} from "@/app/hooks/usePlanesDelCatalogo";
 
 // Cupos limitados por plan. El backend adjunta este objeto a cada plan de
 // GET /config/plans SOLO si el plan tiene cupos configurados (hoy: Fluidez).
-export interface PlanCupos {
-  activo: boolean;
-  max: number;
-  usados: number;
-  restantes: number;
-}
+export type PlanCupos = CuposDelPlan;
 
 // Umbral para el copy de urgencia ("Últimos N cupos" vs "Solo N cupos").
 const LOW_STOCK_THRESHOLD = 3;
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
-
 type CuposMap = Record<string, PlanCupos>;
+
+// Cada cuánto re-consultar los cupos para que el conteo baje en vivo (reactivo).
+//
+// ⚠️⚠️ Este número gasta el presupuesto de peticiones del BACKEND, que es de 100
+// cada 15 minutos POR VISITANTE (y era de 100 para todo el sitio junto hasta que
+// se puso `trust proxy`, ver lzacademy-backend/src/app.js). A 30 s, un solo
+// visitante quieto un cuarto de hora en /paso-tres se llevaba 30 de esas 100 él
+// solo: tres personas a la vez agotaban el cubo entero y a partir de ahí el
+// checkout, el panel y los webhooks de Stripe empezaban a recibir 429.
+//
+// A 2 minutos el contador sigue bajando en vivo —que es para lo único que
+// existe— a la cuarta parte del coste.
+const REFRESH_MS = 120_000;
 
 // Hook que expone los cupos de los planes que los tienen. Fail-open: mientras
 // carga o si el fetch falla, los planes se consideran disponibles para no
 // ocultar cards por un error de red (el checkout valida server-side de todos modos).
-// Cada cuánto re-consultar los cupos para que el conteo baje en vivo (reactivo).
-const REFRESH_MS = 30_000;
-
+//
+// ⚠️ Desde el 2026-09-20 NO hace su propio `fetch`: deriva de la lectura
+// compartida de `/config/plans` (ver `usePlanesDelCatalogo`). Lo que este hook
+// conserva en exclusiva es el REFRESCO, porque es el único consumidor al que le
+// importa que el número baje en vivo — y al forzarlo se actualizan de paso los
+// precios y las viñetas de toda la página.
 export function usePlanCupos() {
-  const [cupos, setCupos] = useState<CuposMap>({});
-  const [loading, setLoading] = useState(true);
+  const { cupos, estado } = useMapasDelCatalogo();
+  const loading = estado === "cargando";
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = () => {
-      fetch(`${BACKEND_URL}/config/plans`, { cache: "no-store" })
-        .then((r) => r.json())
-        .then((data) => {
-          if (cancelled || !Array.isArray(data)) return;
-          const map: CuposMap = {};
-          for (const p of data) {
-            if (p && typeof p === "object" && p.key && p.cupos) map[p.key] = p.cupos;
-          }
-          setCupos(map);
-        })
-        .catch(() => { /* fail-open: sin datos de cupos */ })
-        .finally(() => { if (!cancelled) setLoading(false); });
-    };
-
-    load();
-    // Reactivo: re-consulta cada 30s y al volver a enfocar la pestaña, para que
-    // los "N cupos disponibles" bajen a medida que se ocupan.
-    const id = setInterval(load, REFRESH_MS);
-    const onFocus = () => load();
+    // Reactivo: re-consulta cada REFRESH_MS y al volver a enfocar la pestaña,
+    // para que los "N cupos disponibles" bajen a medida que se ocupan.
+    //
+    // ⚠️ Una pestaña OCULTA no consulta: nadie está leyendo ese contador, y una
+    // pestaña olvidada en segundo plano seguía pidiendo indefinidamente — que es
+    // el peor gasto posible, porque no lo ve nadie. Al volver, el listener de
+    // `focus` de abajo refresca en el acto, así que no se ve desactualizado.
+    const id = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      refrescarCatalogo();
+    }, REFRESH_MS);
+    const onFocus = () => refrescarCatalogo();
     window.addEventListener("focus", onFocus);
     return () => {
-      cancelled = true;
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
@@ -79,5 +82,5 @@ export function usePlanCupos() {
     return `${c.restantes} cupos disponibles`;
   };
 
-  return { cupos, loading, getCupos, isPlanAvailable, cuposLabel };
+  return { cupos: cupos as CuposMap, loading, getCupos, isPlanAvailable, cuposLabel };
 }

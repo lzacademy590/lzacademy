@@ -29,6 +29,12 @@ export function Footer() {
               <span aria-hidden="true" className="text-zinc-300">
                 ·
               </span>
+              <a href="/legal/plataforma" className="hover:text-zinc-700">
+                Legal de la plataforma
+              </a>
+              <span aria-hidden="true" className="text-zinc-300">
+                ·
+              </span>
               <a href="/mi-suscripcion" className="hover:text-zinc-700">
                 Gestionar suscripción
               </a>

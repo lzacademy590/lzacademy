@@ -32,3 +32,36 @@ html {
   overflow-x: hidden;
   width: 100%;
 }
+
+/* Carrusel de testimonios: las tarjetas se igualan a la más alta de la fila.
+
+   ⚠️⚠️ Esto vive AQUÍ, en CSS plano, y no en clases de Tailwind sobre el
+   slide, por la CASCADA: las utilidades de Tailwind se emiten dentro de
+   `@layer utilities` y el CSS de Swiper es UNLAYERED — y lo unlayered le gana a
+   lo layered sin importar la especificidad. El componente llegó a llevar
+   `[&_.swiper-slide]:flex`, la clase SÍ se generaba, y perdía igual. Lo de
+   `globals.css` compila fuera de capa, así que (0,2,0) sí le gana a (0,1,0).
+
+   ⚠️ Swiper declara `.swiper-slide { display:block; height:100% }`, y ese
+   `100%` contra un wrapper de altura automática colapsa a la altura propia de
+   cada slide. La que hace el trabajo es `height:auto`: con ella el slide se
+   estira al más alto de la fila y la tarjeta lo llena con `h-full`.
+
+   ⚠️ `align-items: stretch` es DEFENSIVO y hoy no cambia nada — Swiper no fija
+   `align-items` y el valor inicial ya se comporta así. Se deja declarado para
+   que un tema que algún día ponga `center` en el wrapper no deshaga esto en
+   silencio; si alguien lo quita, no va a notar ninguna diferencia, y ése es
+   justo el problema.
+
+   ⚠️ Va ACOTADO a `.lz-testimonios` a propósito: no todo carrusel del sitio
+   quiere que su slide más largo mande sobre el resto.
+
+   ⚠️ Y el TECHO lo sigue poniendo el `line-clamp` de la tarjeta. Sin él,
+   igualar significaría estirarlas todas hasta la reseña más larga. */
+.lz-testimonios .swiper-wrapper {
+  align-items: stretch;
+}
+.lz-testimonios .swiper-slide {
+  display: flex;
+  height: auto;
+}

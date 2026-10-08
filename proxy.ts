@@ -38,6 +38,11 @@ const VALID_ROUTES = new Set([
   "/terminos",
   "/reembolsos",
   "/privacidad",
+  "/legal",
+  "/legal/plataforma",
+  "/legal/plataforma/terminos",
+  "/legal/plataforma/privacidad",
+  "/legal/plataforma/normas-de-comunidad",
   "/mi-suscripcion",
 ]);
 

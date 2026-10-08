@@ -5,7 +5,7 @@ import Card from "../components/Card";
 import Pill from "../components/Pill";
 
 export const metadata: Metadata = {
-  title: "Cómo funciona el Método 590 | LZ English Academy",
+  title: "Cómo funciona el Método 590",
   description:
     "Descubre cómo funciona el Método 590: cinco sesiones diarias estructuradas para aprender inglés de forma natural y eficiente en 90 días.",
   alternates: { canonical: "https://lz-englishacademy.com/como-funciona" },

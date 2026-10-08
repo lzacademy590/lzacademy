@@ -5,7 +5,7 @@ import Card from "../components/Card";
 import Pill from "../components/Pill";
 
 export const metadata: Metadata = {
-  title: "Ciencia detrás del Método 590 | LZ English Academy",
+  title: "Ciencia detrás del Método 590",
   description:
     "Descubre la ciencia cognitiva detrás del Método 590: ritmo, repetición y consistencia para construir fluidez real en inglés.",
   alternates: { canonical: "https://lz-englishacademy.com/ciencia" },

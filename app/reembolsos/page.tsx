@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Container } from "../components/Container";
+import { PestanasLegales, URL_SUSCRIPCION_PLATAFORMA } from "../legal/_components/legal";
 
-const LAST_UPDATED = "17 de junio de 2026";
+// ⚠️ Esta política es UNA para el sitio web y la plataforma (ver `app/legal/`):
+// no se duplica en `/legal/plataforma`, se enlaza desde las dos vistas.
+const LAST_UPDATED = "22 de septiembre de 2026";
 
 // TODO (pendiente de decisión del dueño): definir el tratamiento de la comisión de Stripe
 // en reembolsos. Stripe NO devuelve la comisión original (~2.9% + $0.30) al hacer un refund.
@@ -31,6 +34,9 @@ export default function ReembolsosPage() {
         <div className="pointer-events-none absolute -bottom-28 right-10 h-72 w-72 rounded-full bg-yellow-orange-300/14 blur-3xl" />
         <Container>
           <div className="relative mx-auto max-w-3xl py-12 sm:py-16">
+            <div className="mb-8">
+              <PestanasLegales />
+            </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-falu-red-700">
               LZ English Academy — Método 590
             </p>
@@ -136,16 +142,43 @@ export default function ReembolsosPage() {
               <p>
                 Una vez transcurridos los primeros 3 días desde el inicio de clases,{" "}
                 <strong>no se otorgan reembolsos</strong> del periodo en curso. Puedes cancelar
-                la renovación desde tu{" "}
-                <Link
-                  href="/mi-suscripcion"
-                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
-                >
-                  portal de suscripción
-                </Link>{" "}
-                para no ser cobrado en el siguiente periodo, conservando el acceso hasta el final
-                del periodo ya pagado.
+                la renovación para no ser cobrado en el siguiente periodo, conservando el acceso
+                hasta el final del periodo ya pagado:
               </p>
+              {/* ⚠️ Dos caminos: `/mi-suscripcion` no encuentra a quien compró en la
+                  plataforma (ver `URL_SUSCRIPCION_PLATAFORMA`). */}
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  si contrataste desde la plataforma de aprendizaje, en{" "}
+                  <a
+                    href={URL_SUSCRIPCION_PLATAFORMA}
+                    className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                  >
+                    Configuración › Suscripción
+                  </a>{" "}
+                  (&laquo;Gestionar suscripción y pago&raquo;);
+                </li>
+                <li>
+                  si te inscribiste en este sitio web, desde tu{" "}
+                  <Link
+                    href="/mi-suscripcion"
+                    className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                  >
+                    portal de suscripción
+                  </Link>
+                  ;
+                </li>
+                <li>
+                  o escribiéndonos a{" "}
+                  <a
+                    href="mailto:info@lz-englishacademy.com"
+                    className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                  >
+                    info@lz-englishacademy.com
+                  </a>
+                  .
+                </li>
+              </ul>
             </Section>
 
             <Section title="3. Renovaciones">
@@ -190,7 +223,17 @@ export default function ReembolsosPage() {
             <Section title="6. Efecto del reembolso">
               <p>
                 Al otorgarse un reembolso, <strong>se cancela también tu suscripción</strong> y
-                se retira tu acceso al Servicio, incluyendo la salida de la comunidad de WhatsApp.
+                se retira el acceso de tu plan, incluyendo la salida de la comunidad de WhatsApp.
+                Tu cuenta de la plataforma de aprendizaje <strong>pasa al plan gratis</strong>:
+                conservas tu avance y lo que escribiste, pero los días nuevos llegan sin
+                material, como se explica en los{" "}
+                <Link
+                  href="/legal/plataforma/terminos"
+                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                >
+                  Términos de Uso de la Plataforma
+                </Link>
+                .
               </p>
             </Section>
 
@@ -199,6 +242,19 @@ export default function ReembolsosPage() {
                 No se otorgan reembolsos en casos de uso indebido del Servicio, incumplimiento de
                 nuestros Términos y Condiciones, o conducta que vulnere las normas de convivencia
                 de la comunidad.
+              </p>
+              <p>
+                Tampoco hay devolución, ni total ni parcial, cuando{" "}
+                <strong>la instructora decide dejar de darte clases por un comportamiento
+                inadecuado</strong>: ni de las clases que no llegaste a recibir ni del resto
+                del periodo pagado. Ver las{" "}
+                <Link
+                  href="/legal/plataforma/normas-de-comunidad"
+                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                >
+                  Normas de la Comunidad y de Comportamiento
+                </Link>
+                .
               </p>
             </Section>
 

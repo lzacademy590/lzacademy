@@ -5,6 +5,7 @@ import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
 import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
+import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 
 interface StudentData {
   full_name: string;
@@ -186,8 +187,16 @@ export default function PagoEstudiantesPage() {
           discountCode: appliedDiscount ? appliedDiscount.code : undefined,
         }),
       });
-      const data = await res.json();
+      const { data, saturado } = await leerRespuesta(res);
       if (!res.ok) {
+        // ⚠️ Backend saturado (429): no es un fallo del pago, y el 429 NO viene
+        // en JSON — antes reventaba el parseo y el alumno que RECOMPRA leía el
+        // error genérico de tarjeta. Ver lib/respuesta-del-backend.
+        if (saturado) {
+          setFormError(MENSAJE_SATURADO);
+          setCheckoutLoading(false);
+          return;
+        }
         // Plan sin cupos: mensaje claro en vez del error genérico de pago.
         if (res.status === 409 && data?.code === "PLAN_SOLD_OUT") {
           setFormError("Este plan ya no tiene cupos disponibles.");
@@ -196,6 +205,9 @@ export default function PagoEstudiantesPage() {
         }
         throw new Error(data?.error || "Error");
       }
+      // Un 200 sin `url` no es navegable: sin esto se acababa yendo a la ruta
+      // literal "undefined" en vez de a Stripe.
+      if (!data?.url) throw new Error("Error");
       window.location.href = data.url;
     } catch (err) {
       setFormError(err instanceof Error && err.message !== "Error"

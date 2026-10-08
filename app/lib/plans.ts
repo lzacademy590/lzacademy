@@ -239,7 +239,7 @@ export const DEFAULT_LEVEL_AVAILABILITY: Record<
 // pantalla no lo ofrecía.
 //
 // ⚠️ **El arte NO se inventa.** Un plan sin ficha local sale con
-// `PRESENTACION_NEUTRA` (gris) y con las viñetas que el admin escribió. Se ve más
+// un color DERIVADO de su clave y con las viñetas que el admin escribió. Se ve más
 // sobrio que los cuatro de siempre, y es lo correcto: mejor un plan vendible sin
 // ilustración que un plan invisible.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,17 +279,81 @@ export interface PlanDeCheckout {
   sinFichaLocal: boolean;
 }
 
-/** Arte de respaldo para un plan que el catálogo trae y este front no conoce. */
-const PRESENTACION_NEUTRA = {
-  adminColor: "bg-gray-400",
-  badgeClass: "bg-gray-100 text-gray-700",
-};
+/**
+ * Arte de respaldo para un plan que el catálogo trae y este front no conoce —
+ * o sea, para cualquier plan abierto en Admin › Planes.
+ *
+ * ⚠️⚠️ **Ya no es GRIS, y ése es el arreglo (2026-09-19).** El negocio lo
+ * reportó con estas palabras: *"el plan sale como «inactivo» o sin color
+ * pintado, sale gris"*. No estaba inactiva —su `status` era `active`— pero en
+ * una tabla donde todo lo demás lleva color, el gris se lee como apagado. Y
+ * encima colisionaba: las tres ramas de Personalizado salían del MISMO gris, así
+ * que no se distinguían entre ellas, que es justo para lo que existe el punto.
+ *
+ * El color se DERIVA de la clave, así que un plan nuevo nace con el suyo, el
+ * mismo en las seis pantallas del admin y en todas las sesiones. Es la misma
+ * decisión que ya se tomó con la muñeca de las cards: un plan abierto hoy tiene
+ * que verse bien hoy, y esperar a que alguien le asigne arte es lo que convierte
+ * esto en un cuello de botella.
+ *
+ * ⚠️ La paleta esquiva a propósito los cinco colores de `PLAN_LIST` (blue,
+ * violet, emerald, amber, yellow-orange) para que un plan nuevo no se disfrace
+ * de uno de siempre. Las clases van escritas ENTERAS: Tailwind las descubre
+ * leyendo el fuente, y una construida a trozos no llega al CSS.
+ */
+const PALETA_DERIVADA = [
+  { adminColor: "bg-teal-500", badgeClass: "bg-teal-100 text-teal-700" },
+  { adminColor: "bg-rose-500", badgeClass: "bg-rose-100 text-rose-700" },
+  { adminColor: "bg-cyan-600", badgeClass: "bg-cyan-100 text-cyan-700" },
+  { adminColor: "bg-fuchsia-500", badgeClass: "bg-fuchsia-100 text-fuchsia-700" },
+  { adminColor: "bg-lime-600", badgeClass: "bg-lime-100 text-lime-700" },
+  { adminColor: "bg-indigo-500", badgeClass: "bg-indigo-100 text-indigo-700" },
+  { adminColor: "bg-orange-500", badgeClass: "bg-orange-100 text-orange-700" },
+  { adminColor: "bg-pink-600", badgeClass: "bg-pink-100 text-pink-700" },
+  { adminColor: "bg-purple-600", badgeClass: "bg-purple-100 text-purple-700" },
+  { adminColor: "bg-red-600", badgeClass: "bg-red-100 text-red-700" },
+];
 
-export function planColorDe(key: string): string {
-  return PLAN_MAP[key]?.adminColor ?? PRESENTACION_NEUTRA.adminColor;
-}
-export function planBadgeClassDe(key: string): string {
-  return PLAN_MAP[key]?.badgeClass ?? PRESENTACION_NEUTRA.badgeClass;
+/**
+ * El gris se RESERVA para "aquí no hay plan" (una fila sin dato, un valor vacío).
+ * Esa sí es una pregunta sin respuesta y merece verse apagada; un plan que existe
+ * y que este front no tiene fichado, no.
+ */
+const SIN_PLAN = { adminColor: "bg-gray-400", badgeClass: "bg-gray-100 text-gray-700" };
+
+/**
+ * Hash estable de la clave → una entrada fija de la paleta.
+ *
+ * FNV-1a por su avalancha: las claves de una familia comparten prefijo
+ * ("PERSONALIZED_PLUS", "PERSONALIZED_INMERSION") y se diferencian al final, que
+ * es donde un `h * 31 + c` reparte peor.
+ *
+ * ⚠️⚠️ **Puede haber COINCIDENCIAS, y está medido: hoy mismo PERSONALIZED_PLUS y
+ * PERSONALIZED_INMERSION comparten color.** Se deja así a sabiendas, y conviene
+ * saber por qué antes de "arreglarlo":
+ *
+ * · No es el hash. Con diez colores y tres claves es el problema del cumpleaños:
+ *   ninguna función `clave → color` garantiza N colores para N claves sin saber
+ *   cuáles son las otras. Cambiar de hash o ampliar la paleta solo mueve la
+ *   lotería — y por encima de diez, los Tailwind que quedan ya no se distinguen
+ *   a simple vista, que era el objetivo.
+ * · Pasarle el conjunto SÍ lo resolvería, y es peor: el mismo plan cambiaría de
+ *   color según qué otros haya en pantalla, o sea rompería lo único que esto
+ *   promete — que un plan se vea siempre igual en las seis pantallas.
+ * · Y el coste real es pequeño: en las seis, el punto va pegado al NOMBRE del
+ *   plan. El color sirve para barrer la lista, no para identificar la fila.
+ *
+ * Lo que este arreglo sí garantiza —y era el fallo reportado— es que ningún plan
+ * vivo se pinte de GRIS ni se disfrace de uno de los cinco de siempre.
+ */
+function presentacionDerivada(key: string) {
+  if (!key) return SIN_PLAN;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return PALETA_DERIVADA[h % PALETA_DERIVADA.length];
 }
 
 /**
@@ -451,13 +515,20 @@ export function pideHorario(
 export function isDiscountablePlan(key: string): boolean {
   return DISCOUNTABLE_PLANS.includes(key as PlanKey);
 }
-// Color (clase Tailwind bg) por plan, con fallback gris seguro.
+/*
+  Color del plan en el admin. Las seis pantallas que pintan un punto o un chip
+  pasan por aquí (`admin/_utils/planColors` solo reexporta), así que este es el
+  único sitio donde vive la regla.
+
+  ⚠️ Había un SEGUNDO par idéntico —`planColorDe`/`planBadgeClassDe`— exportado
+  y sin un solo consumidor. Se retiró al arreglar esto: dos nombres para la misma
+  pregunta es exactamente cómo se acaba pintando un plan de dos colores.
+*/
 export function planColor(key: string): string {
-  return PLAN_MAP[key]?.adminColor ?? "bg-gray-400";
+  return PLAN_MAP[key]?.adminColor ?? presentacionDerivada(key).adminColor;
 }
-// Clases de chip/badge (bg+text) por plan, con fallback gris seguro.
 export function planBadgeClass(key: string): string {
-  return PLAN_MAP[key]?.badgeClass ?? "bg-gray-100 text-gray-700";
+  return PLAN_MAP[key]?.badgeClass ?? presentacionDerivada(key).badgeClass;
 }
 export function planLabel(key: string): string {
   return PLAN_MAP[key]?.label ?? key;

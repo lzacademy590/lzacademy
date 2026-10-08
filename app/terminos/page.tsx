@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Container } from "../components/Container";
+import { PestanasLegales, URL_SUSCRIPCION_PLATAFORMA } from "../legal/_components/legal";
 
-const LAST_UPDATED = "17 de junio de 2026";
+const LAST_UPDATED = "22 de septiembre de 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -26,6 +27,9 @@ export default function TerminosPage() {
         <div className="pointer-events-none absolute -bottom-28 right-10 h-72 w-72 rounded-full bg-yellow-orange-300/14 blur-3xl" />
         <Container>
           <div className="relative mx-auto max-w-3xl py-12 sm:py-16">
+            <div className="mb-8">
+              <PestanasLegales activa="sitio" />
+            </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-falu-red-700">
               LZ English Academy — Método 590
             </p>
@@ -89,6 +93,17 @@ export default function TerminosPage() {
                 de práctica. El alcance específico de cada Plan se describe en la página de cada
                 Plan al momento de la inscripción.
               </p>
+              <p>
+                El uso de la plataforma de aprendizaje (tu cuenta, tus sesiones, tu contenido,
+                la comunidad y las clases en vivo) se rige además por los{" "}
+                <Link
+                  href="/legal/plataforma/terminos"
+                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                >
+                  Términos de Uso de la Plataforma
+                </Link>
+                , que forman parte de estos Términos.
+              </p>
             </Section>
 
             <Section title="3. Inscripción y cuenta">
@@ -105,6 +120,11 @@ export default function TerminosPage() {
                 WhatsApp y al material) se entrega de forma <strong>personal e
                 intransferible</strong>. Está prohibido compartir, revender o ceder tu acceso a
                 terceros.
+              </p>
+              <p>
+                3.4. Debes tener <strong>14 años o más</strong> para inscribirte y usar el
+                Servicio. Si tienes entre 14 y 17 años, necesitas el permiso de tu madre,
+                padre o tutor legal, y la inscripción y el pago los realiza ese adulto.
               </p>
             </Section>
 
@@ -174,15 +194,38 @@ export default function TerminosPage() {
                 salvo que la canceles antes de la fecha de renovación.
               </p>
               <p>
-                6.2. <strong>Cómo cancelar.</strong> Puedes cancelar en cualquier momento desde tu{" "}
-                <Link
-                  href="/mi-suscripcion"
-                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
-                >
-                  portal de gestión de suscripción
-                </Link>
-                : ingresa el correo de tu inscripción y recibirás por correo un enlace seguro para
-                gestionar o cancelar tu suscripción. También puedes solicitar la cancelación
+                {/* ⚠️ Dos caminos según DÓNDE se compró: `/mi-suscripcion` busca al
+                    alumno en la base de este sitio, donde no está quien compró en la
+                    plataforma, y responde igual para no delatar correos — o sea, no
+                    hace nada. Por eso no puede ser el único camino que se nombra. */}
+                6.2. <strong>Cómo cancelar.</strong> Puedes cancelar en cualquier momento:
+              </p>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  <strong>Si contrataste desde la plataforma de aprendizaje:</strong> entra a la
+                  plataforma, ve a{" "}
+                  <a
+                    href={URL_SUSCRIPCION_PLATAFORMA}
+                    className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                  >
+                    Configuración › Suscripción
+                  </a>{" "}
+                  y pulsa &laquo;Gestionar suscripción y pago&raquo;.
+                </li>
+                <li>
+                  <strong>Si te inscribiste en este sitio web:</strong> usa el{" "}
+                  <Link
+                    href="/mi-suscripcion"
+                    className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                  >
+                    portal de gestión de suscripción
+                  </Link>
+                  : ingresa el correo de tu inscripción y recibirás un enlace seguro para
+                  gestionar o cancelar tu suscripción.
+                </li>
+              </ul>
+              <p>
+                En cualquiera de los dos casos también puedes solicitar la cancelación
                 escribiendo a{" "}
                 <a
                   href="mailto:info@lz-englishacademy.com"
@@ -227,6 +270,18 @@ export default function TerminosPage() {
                 acosar o faltar el respeto a otros estudiantes o al personal en la comunidad; (d)
                 usar el Servicio con fines ilícitos. El incumplimiento puede resultar en la
                 suspensión o terminación de tu acceso sin reembolso.
+              </p>
+              <p>
+                Si te comportas de forma inadecuada con tu instructora o en las clases en
+                vivo, <strong>la instructora puede decidir dejar de darte clases, sin
+                devolución del dinero</strong>, ni total ni parcial. El detalle está en las{" "}
+                <Link
+                  href="/legal/plataforma/normas-de-comunidad"
+                  className="font-semibold text-falu-red-700 hover:text-falu-red-800"
+                >
+                  Normas de la Comunidad y de Comportamiento
+                </Link>
+                .
               </p>
             </Section>
 
