@@ -58,8 +58,8 @@ export default function PrivacidadPlataformaPage() {
           </li>
           <li>
             <strong>Aprendizaje:</strong> los días y sesiones que completas, tus
-            respuestas a quizzes y evaluaciones, tu racha, tu progreso, tus certificados
-            y el tiempo en que haces cada cosa.
+            respuestas a quizzes y evaluaciones, tu racha, tu progreso, tus certificados,
+            las palabras que marcas para repasar y el tiempo en que haces cada cosa.
           </li>
           <li>
             <strong>Grabaciones de voz:</strong> lo que grabas en las actividades de
@@ -71,8 +71,8 @@ export default function PrivacidadPlataformaPage() {
           </li>
           <li>
             <strong>Textos que escribes:</strong> journal, respuestas de recuerdo activo,
-            preguntas y respuestas bajo los videos, mensajes con otros usuarios y
-            reseñas.
+            preguntas y respuestas bajo los videos, mensajes con otros usuarios (privados
+            y en grupos), los reportes que envías, a quién bloqueas y reseñas.
           </li>
           <li>
             <strong>Juegos:</strong> partidas, monedas y artículos de la tienda.
@@ -186,6 +186,21 @@ export default function PrivacidadPlataformaPage() {
             o cumplir la ley.
           </li>
           <li>
+            <strong>Grupos de mensajes:</strong> tu instructora puede leer los grupos en
+            los que esté alguno de sus estudiantes, aunque ella no sea miembro, y puede
+            ocultar mensajes o sacar a alguien del grupo. También el grupo en el que uno
+            de sus estudiantes reportó un mensaje, mientras ese reporte esté abierto o
+            durante los 7 días siguientes, aunque su estudiante ya haya salido. El
+            equipo de la Academia puede leer cualquier grupo. Los mensajes privados entre
+            estudiantes no los lee, salvo los que alguien le reporta.
+          </li>
+          <li>
+            <strong>Reportes:</strong> si reportas un mensaje, guardamos con tu reporte
+            una copia de ese mensaje, el motivo y tu comentario. Los ven las instructoras
+            de quien reporta y de quien escribió, y el equipo de la Academia. La persona
+            reportada no sabe quién la reportó.
+          </li>
+          <li>
             <strong>Otros estudiantes</strong> ven tu nombre, foto, descripción, nivel,
             marco de perfil y lo que publicas en la comunidad. Las preguntas de las
             cuentas gratis solo las ve su autor y el equipo de la Academia.
@@ -255,9 +270,11 @@ export default function PrivacidadPlataformaPage() {
         <p>
           Los correos del servicio (acceso, contraseña, pagos, seguridad) no se pueden
           desactivar, porque responden a algo que tú hiciste o que afecta a tu cuenta.
-          Los avisos y recordatorios llevan un enlace para darte de baja con un clic, y
-          puedes elegir qué recibes desde Notificaciones en la Plataforma. Las
-          notificaciones push son opcionales y se activan por dispositivo.
+          Los avisos y recordatorios por correo llevan un enlace para darte de baja con
+          un clic. Desde Notificaciones en la Plataforma eliges qué recibes, también los
+          recordatorios que solo llegan como notificación (por ejemplo, de tus clases o
+          de las palabras que te quedan por repasar). Las notificaciones push son
+          opcionales y se activan por dispositivo.
         </p>
       </Section>
 
@@ -265,7 +282,8 @@ export default function PrivacidadPlataformaPage() {
         <p>
           9.1. Guardamos tus datos mientras tengas cuenta. Si tu plan de pago termina,
           tu cuenta pasa al plan gratis y conservamos tu avance y tu trabajo para que
-          puedas continuar.
+          puedas continuar. Un mensaje ocultado por moderación conserva su texto como
+          registro, aunque ya no se muestre a nadie en la conversación.
         </p>
         <p>
           9.2. Puedes pedirnos en cualquier momento <strong>acceder</strong> a tus datos,{" "}
