@@ -187,7 +187,7 @@ export default function PrivacidadPlataformaPage() {
           </li>
           <li>
             <strong>Grupos de mensajes:</strong> tu instructora puede leer los grupos en
-            los que esté alguno de sus estudiantes, aunque ella no sea miembro, y puede
+            los que esté alguno de sus estudiantes con su curso en marcha, aunque ella no sea miembro, y puede
             ocultar mensajes o sacar a alguien del grupo. También el grupo en el que uno
             de sus estudiantes reportó un mensaje, mientras ese reporte esté abierto o
             durante los 7 días siguientes, aunque su estudiante ya haya salido. El

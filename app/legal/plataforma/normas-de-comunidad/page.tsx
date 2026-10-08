@@ -115,7 +115,8 @@ export default function NormasDeComunidadPage() {
           4.3. <strong>Bloquear.</strong> Puedes bloquear a otro estudiante desde un
           mensaje privado o desde la lista de miembros de un grupo. Mientras dure el
           bloqueo, ninguno de los dos puede escribir al otro en privado ni coincidir
-          en un grupo nuevo. No se le avisa. En los grupos que ya compartíais, sus
+          en un grupo nuevo que cree un estudiante (los grupos de la clase que crea tu
+          instructora pueden incluir a los dos). No se le avisa. En los grupos que ya compartíais, sus
           mensajes se siguen viendo, pero no te llegan avisos suyos. Puedes
           desbloquearle cuando quieras.
         </p>
@@ -124,7 +125,7 @@ export default function NormasDeComunidadPage() {
       <Section title="5. Qué hacemos">
         <p>
           Tu instructora puede leer los grupos de mensajes en los que esté alguno de sus
-          estudiantes, aunque ella no sea miembro, y también el grupo en el que uno de
+          estudiantes (con su curso en marcha), aunque ella no sea miembro, y también el grupo en el que uno de
           sus estudiantes reportó un mensaje, durante los días siguientes al reporte.
           Los mensajes privados entre
           estudiantes no los lee, salvo los que alguien le reporta.
@@ -135,7 +136,7 @@ export default function NormasDeComunidadPage() {
           grupo. Quien es sacado de un grupo no puede volver a él durante 7 días, y si
           lo sacó la instructora o el equipo, durante ese tiempo tampoco puede
           coincidir en ningún grupo con los estudiantes que estaban en él (o que
-          acababan de salir) ni con quien le reportó. Quien sale de un grupo puede
+          acababan de salir) ni con quien le reportó, ni escribirles en privado. Quien sale de un grupo puede
           volver a ser añadido pasadas 24 horas. Según la gravedad y si se repite, podemos
           además advertirte, limitar tu acceso a la comunidad, suspender tu cuenta o
           cerrarla. En los casos graves, sin reembolso, según la{" "}
