@@ -39,12 +39,12 @@ export const URL_SUSCRIPCION_PLATAFORMA = "https://app.lainz590.com/settings/sub
  * alumno aceptó un texto que no es el que leyó.
  */
 export const VERSIONES_PLATAFORMA = {
-  terminos: "2026-09-22",
-  privacidad: "2026-09-22",
-  normas: "2026-09-22",
+  terminos: "2026-10-08",
+  privacidad: "2026-10-08",
+  normas: "2026-10-08",
 } as const;
 
-export const FECHA_PLATAFORMA = "22 de septiembre de 2026";
+export const FECHA_PLATAFORMA = "8 de octubre de 2026";
 
 type Vista = "sitio" | "plataforma";
 

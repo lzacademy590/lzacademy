@@ -15,9 +15,11 @@ export const metadata: Metadata = {
 };
 
 /*
-  ⚠️ La Plataforma NO tiene botón de "reportar" (medido el 2026-09-22 en
-  `forum/` y `messages/`): por eso los reportes van por correo. Si se construye
-  uno, la sección 4 lo nombra y sube la versión.
+  ⚠️ Desde el 2026-10-08 hay botón "Reportar" en los mensajes de GRUPO y en los
+  PRIVADOS entre alumnos (`message-reports/`), y la instructora LEE los grupos de
+  sus estudiantes (`GET /groups/moderation`). Las preguntas bajo los videos
+  (`forum/`) siguen sin botón: por eso allí el reporte sigue yendo por correo.
+  Si se construye ese botón, la sección 4 lo nombra y sube la versión.
 */
 
 export default function NormasDeComunidadPage() {
@@ -39,8 +41,9 @@ export default function NormasDeComunidadPage() {
 
       <Section title="1. Dónde se aplican">
         <p>
-          En las preguntas y respuestas bajo los videos, los mensajes entre usuarios, tu
-          foto y descripción de perfil, las reseñas y las clases en vivo por Zoom.
+          En las preguntas y respuestas bajo los videos, los mensajes entre usuarios
+          (privados y en grupos), tu foto y descripción de perfil, las reseñas y las
+          clases en vivo por Zoom.
         </p>
       </Section>
 
@@ -94,16 +97,46 @@ export default function NormasDeComunidadPage() {
 
       <Section title="4. Cómo reportar">
         <p>
-          Si ves algo que incumple estas normas, o alguien te molesta por mensaje,
-          escríbenos a <Correo /> indicando dónde está (el día, la lección o el nombre de
-          la persona) y, si puedes, una captura. Revisamos cada reporte.
+          4.1. <strong>En los mensajes</strong> (privados o de un grupo), usa el botón{" "}
+          <strong>Reportar</strong> que aparece junto a cada mensaje de otra persona:
+          elige el motivo y, si quieres, añade un comentario. Le llega a la instructora
+          de quien reporta y de quien escribió, que lo revisa; si el mensaje es de
+          alguien del equipo de la Academia, o no hay instructora a quien avisar, lo
+          revisa el equipo de la Academia. La persona reportada no sabe quién la
+          reportó.
+        </p>
+        <p>
+          4.2. <strong>En el resto de la Plataforma</strong> (por ejemplo, las preguntas
+          bajo los videos o una foto de perfil), escríbenos a <Correo /> indicando dónde
+          está (el día, la lección o el nombre de la persona) y, si puedes, una captura.
+        </p>
+        <p>Revisamos cada reporte.</p>
+        <p>
+          4.3. <strong>Bloquear.</strong> Puedes bloquear a otro estudiante desde un
+          mensaje privado o desde la lista de miembros de un grupo. Mientras dure el
+          bloqueo, ninguno de los dos puede escribir al otro en privado ni coincidir
+          en un grupo nuevo. No se le avisa. En los grupos que ya compartíais, sus
+          mensajes se siguen viendo, pero no te llegan avisos suyos. Puedes
+          desbloquearle cuando quieras.
         </p>
       </Section>
 
       <Section title="5. Qué hacemos">
         <p>
-          El equipo de la Academia puede ocultar o borrar publicaciones y
-          mensajes que incumplan estas normas. Según la gravedad y si se repite, podemos
+          Tu instructora puede leer los grupos de mensajes en los que esté alguno de sus
+          estudiantes, aunque ella no sea miembro, y también el grupo en el que uno de
+          sus estudiantes reportó un mensaje, durante los días siguientes al reporte.
+          Los mensajes privados entre
+          estudiantes no los lee, salvo los que alguien le reporta.
+        </p>
+        <p>
+          La instructora y el equipo de la Academia pueden ocultar o borrar
+          publicaciones y mensajes que incumplan estas normas, y sacar a alguien de un
+          grupo. Quien es sacado de un grupo no puede volver a él durante 7 días, y si
+          lo sacó la instructora o el equipo, durante ese tiempo tampoco puede
+          coincidir en ningún grupo con los estudiantes que estaban en él (o que
+          acababan de salir) ni con quien le reportó. Quien sale de un grupo puede
+          volver a ser añadido pasadas 24 horas. Según la gravedad y si se repite, podemos
           además advertirte, limitar tu acceso a la comunidad, suspender tu cuenta o
           cerrarla. En los casos graves, sin reembolso, según la{" "}
           <Enlace href="/reembolsos">Política de Reembolso</Enlace>.
