@@ -7,6 +7,7 @@ import { usePlanCohorte } from "../hooks/usePlanCohorte";
 import { pideHorario, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
+import { medirInicioDePago } from "@/app/lib/analitica";
 
 interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
 
@@ -299,6 +300,10 @@ const PaymentForm = ({
 
     const doCheckout = async () => {
         setLoading(true);
+        medirInicioDePago(
+            { clave: plan, nombre: planActual?.nombreEnCheckout, priceCents: planActual?.priceCents },
+            "publico",
+        );
         try {
             const res = await fetch(`${BACKEND_URL}/create-checkout-session`, {
                 method: "POST",

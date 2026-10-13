@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getPlan, esPlanQueRenueva, pideHorario, planLabel } from "@/app/lib/plans";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import { medirCompra } from "@/app/lib/analitica";
 
 interface PremiumSlot { id: string; datetime_pt: string; enabled: boolean; }
 
@@ -110,6 +111,23 @@ const SuccessContent = () => {
                 setSchedulingStatus(data.scheduling_status ?? null);
                 setAmount(data.amount ?? null);
                 setState("success");
+                /*
+                  La venta para Google Analytics, AQUÍ y no en un efecto sobre el
+                  estado: el estado aún guarda el pago ANTERIOR cuando cambia el
+                  `session_id` sin recargar, y un efecto medía una compra falsa
+                  con los datos del otro pago (medido). Aquí solo hay la
+                  respuesta confirmada de ESTA sesión. `amount` es lo cobrado,
+                  con descuento; `medirCompra` no la cuenta dos veces si se
+                  recarga. Las RENOVACIONES no pasan por aquí (las cobra Stripe
+                  sin visita): GA mide altas, no ingresos recurrentes.
+                */
+                if (data.user?.plan) {
+                    medirCompra(
+                        session_id,
+                        { clave: data.user.plan, nombre: planLabel(data.user.plan) },
+                        data.amount ?? null,
+                    );
+                }
             } catch (err: any) {
                 setState("error");
                 setErrorMsg(err?.message || "Intenta nuevamente o contáctanos si el problema persiste.");

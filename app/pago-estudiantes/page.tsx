@@ -6,6 +6,7 @@ import { usePlanCohorte } from "../hooks/usePlanCohorte";
 import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
+import { medirInicioDePago } from "@/app/lib/analitica";
 
 interface StudentData {
   full_name: string;
@@ -170,6 +171,16 @@ export default function PagoEstudiantesPage() {
   async function doCheckout() {
     setCheckoutLoading(true);
     setFormError("");
+    // Con descuento se mide lo que va a pagar, no el precio de lista.
+    medirInicioDePago(
+      {
+        clave: plan,
+        nombre: planActual?.nombreEnCheckout,
+        priceCents: appliedDiscount ? appliedDiscount.discountedAmount : planActual?.priceCents,
+      },
+      "alumno",
+      { coupon: appliedDiscount?.code },
+    );
     try {
       const res = await fetch(`${BACKEND_URL}/student-checkout`, {
         method: "POST",

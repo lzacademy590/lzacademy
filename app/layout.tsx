@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import Script from "next/script";
+import GoogleAnalytics from "./components/GoogleAnalytics";
 import { SiteWrapper } from "./components/SiteWrapper";
 import { Playfair_Display, Barlow_Condensed , Charmonman} from "next/font/google";
 
@@ -133,19 +133,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-white text-zinc-900 flex flex-col">
         <SiteWrapper>{children}</SiteWrapper>
 
-        {/* Google Analytics 4 */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-KQMHGX2CRD"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-KQMHGX2CRD');
-          `}
-        </Script>
+        <GoogleAnalytics />
       </body>
     </html>
   );
