@@ -8,7 +8,6 @@ import { todayPT } from "../_utils/ptTime";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
-import { HorariosDeGrupo } from "./HorariosDeGrupo";
 
 interface StartDate {
     value: string;
@@ -268,18 +267,13 @@ export default function FechasPage() {
     return (
         <div className="p-4 md:p-8 max-w-2xl mx-auto">
             <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Fechas</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Fechas de inicio</h1>
                 <p className="text-sm text-gray-400 mt-1">
-                    Administra las fechas de inicio y los horarios de grupo que el alumno elige al comprar.
+                    Administra las fechas de inicio que el alumno elige al comprar y qué planes se venden en cada una.
                 </p>
             </div>
 
-            {/* ══ SECCIÓN 1: Fechas de inicio ══ */}
-            <div className="mb-10">
-                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-500">1</span>
-                    Fechas de inicio
-                </h2>
+            <div className="mb-6">
 
                 {/* Agregar fecha */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
@@ -427,19 +421,11 @@ export default function FechasPage() {
                 </p>
             </div>
 
-            {/* ══ SECCIÓN 2: Horarios de grupo por cohorte y nivel ══ */}
-            <HorariosDeGrupo
-                fechas={dates.filter(d => d.value >= today)}
-                planes={planesDeCheckout(catalogoDeFechas)
-                    .filter(p => cohortPlanKeys.includes(p.key))
-                    // Solo las BASES: un horario vale para toda su familia
-                    // (2026-10-17), así que publicarlo "para una rama" no existe.
-                    .filter(p => {
-                        const fam = catalogoDeFechas?.find(c => c.key === p.key)?.family;
-                        return !fam || fam === p.key;
-                    })
-                    .map(p => ({ key: p.key, nombre: p.nombreEnCheckout }))}
-            />
+            {/* Los horarios de grupo viven en su propia pestaña desde el 2026-10-17. */}
+            <p className="text-sm text-gray-500 px-1">
+                Los horarios de cada fecha y nivel se publican en{" "}
+                <a href="/admin/horarios" className="font-semibold text-falu-red-600 hover:underline">Horarios por grupo</a>.
+            </p>
         </div>
     );
 }
