@@ -8,6 +8,7 @@ import { todayPT, nowPTInput } from "../_utils/ptTime";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
+import { HorariosDeGrupo } from "./HorariosDeGrupo";
 
 interface StartDate {
     value: string;
@@ -649,6 +650,14 @@ export default function FechasPage() {
                     Los horarios <strong>activos</strong> se muestran al alumno en la página de confirmación de pago Premium. Ingresa siempre en hora PT (Pacífico).
                 </p>
             </div>
+
+            {/* ══ SECCIÓN 3: Horarios de grupo por cohorte y nivel ══ */}
+            <HorariosDeGrupo
+                fechas={dates.filter(d => d.value >= today)}
+                planes={planesDeCheckout(catalogoDeFechas)
+                    .filter(p => cohortPlanKeys.includes(p.key))
+                    .map(p => ({ key: p.key, nombre: p.nombreEnCheckout }))}
+            />
         </div>
     );
 }

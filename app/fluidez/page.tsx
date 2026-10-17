@@ -5,6 +5,7 @@ import { useFeaturesDelPlan } from "@/app/hooks/useFeaturesDelPlan";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
+import HorariosPublicados from "@/app/components/HorariosPublicados";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import PrecioDelPlan from "@/app/components/PrecioDelPlan";
 
@@ -154,6 +155,7 @@ function FluidezPlanContent() {
                   <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3l5 5-5 5" /></svg>
                 </button>
               </div>
+              <HorariosPublicados plan="Fluidez" nivel={nivel} />
 
             </div>
           </div>
