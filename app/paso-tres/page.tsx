@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { Suspense, useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PreguntasFrecuentes from "@/app/components/Questions";
 import { TestimonialsSection } from "@/app/components/Testimonials";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
 import { fraseDeClases } from "@/app/lib/dias-de-clase";
+import { medirListaDePlanes, medirPlanElegido, type PlanMedido } from "@/app/lib/analitica";
 import {
   usePlanesDelCatalogo,
   precioEtiqueta,
@@ -500,6 +501,8 @@ function PasosTresContent() {
           // puede inventar para un plan nuevo.
           name: arte ? arte.nombre : f.label,
           price: precioEtiqueta(f.priceCents),
+          // Para la analítica: el precio de la etiqueta ya viene formateado.
+          precioCents: f.priceCents,
           priceUnit: "USD / 28 días",
           /*
             ⚠️ **La nota de cobro sale del DATO, no del copy local.** Aquí ganaba
@@ -646,7 +649,36 @@ function PasosTresContent() {
     setFlipped((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
-  function handleSeleccionar(route: string) {
+  /*
+    Qué plan mide la analítica para una carta: la RAMA elegida si es una
+    familia (es lo que se compra), y si no, el plan de la carta.
+  */
+  function planMedido(plan: (typeof visiblePlans)[number]): PlanMedido {
+    if (plan.elegida)
+      return { clave: plan.elegida.key, nombre: plan.elegida.label, priceCents: plan.elegida.priceCents };
+    return {
+      clave: String(plan.claveDelPlan),
+      nombre: plan.name.replace(/\s+/g, " "),
+      priceCents: plan.precioCents,
+    };
+  }
+
+  /*
+    `view_item_list` UNA vez, y solo con el catálogo de verdad: las cartas de
+    respaldo llevan precios de ayer y medirlas contaría una lista que el
+    comprador quizá ni vio.
+  */
+  const listaMedida = useRef(false);
+  useEffect(() => {
+    if (listaMedida.current || !catalogo) return;
+    listaMedida.current = true;
+    medirListaDePlanes(visiblePlans.map(planMedido));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogo]);
+
+  function handleSeleccionar(plan: (typeof visiblePlans)[number]) {
+    medirPlanElegido(planMedido(plan));
+    const route = plan.route;
     router.push(
       `${route}?nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(dificultades)}`
     );
@@ -808,7 +840,7 @@ function PasosTresContent() {
 
                 <button
                   type="button"
-                  onClick={() => handleSeleccionar(plan.route)}
+                  onClick={() => handleSeleccionar(plan)}
                   className="w-full rounded-full py-3 text-[14px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
                   style={{ color: plan.btnColor }}
                 >
@@ -979,7 +1011,7 @@ function PasosTresContent() {
                     )}
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); handleSeleccionar(plan.route); }}
+                      onClick={(e) => { e.stopPropagation(); handleSeleccionar(plan); }}
                       className="mt-6 inline-flex items-center rounded-full px-7 py-2.5 text-[13px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
                       style={{ color: plan.btnColor }}
                     >

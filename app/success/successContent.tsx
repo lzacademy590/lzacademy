@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getPlan, esPlanQueRenueva, pideHorario, planLabel } from "@/app/lib/plans";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import { medirCompra } from "@/app/lib/analitica";
+import { listaDeDias } from "@/app/lib/dias-de-clase";
 
 interface PremiumSlot { id: string; datetime_pt: string; enabled: boolean; }
 
@@ -82,6 +84,9 @@ const SuccessContent = () => {
     const [state, setState] = useState<UiState>("loading");
     const [userData, setUserData] = useState<any>(null);
     const [schedulingStatus, setSchedulingStatus] = useState<string | null>(null);
+    // Enlace personal a /mi-horario (2026-10-16): cambiar de horario sin repetir
+    // el formulario. `null` si el backend no lo tiene configurado.
+    const [tokenHorario, setTokenHorario] = useState<string | null>(null);
     const [amount, setAmount] = useState<number | null>(null);
     const [errorMsg, setErrorMsg] = useState("");
     const [visible, setVisible] = useState(false);
@@ -108,8 +113,26 @@ const SuccessContent = () => {
                 if (!data?.paid) throw new Error("El pago aún no está confirmado.");
                 setUserData(data.user || null);
                 setSchedulingStatus(data.scheduling_status ?? null);
+                setTokenHorario(typeof data.token_horario === "string" ? data.token_horario : null);
                 setAmount(data.amount ?? null);
                 setState("success");
+                /*
+                  La venta para Google Analytics, AQUÍ y no en un efecto sobre el
+                  estado: el estado aún guarda el pago ANTERIOR cuando cambia el
+                  `session_id` sin recargar, y un efecto medía una compra falsa
+                  con los datos del otro pago (medido). Aquí solo hay la
+                  respuesta confirmada de ESTA sesión. `amount` es lo cobrado,
+                  con descuento; `medirCompra` no la cuenta dos veces si se
+                  recarga. Las RENOVACIONES no pasan por aquí (las cobra Stripe
+                  sin visita): GA mide altas, no ingresos recurrentes.
+                */
+                if (data.user?.plan) {
+                    medirCompra(
+                        session_id,
+                        { clave: data.user.plan, nombre: planLabel(data.user.plan) },
+                        data.amount ?? null,
+                    );
+                }
             } catch (err: any) {
                 setState("error");
                 setErrorMsg(err?.message || "Intenta nuevamente o contáctanos si el problema persiste.");
@@ -128,7 +151,30 @@ const SuccessContent = () => {
     const catalogo = usePlanesDelCatalogo();
     const pideSuHorario = pideHorario(catalogo, userData?.plan ?? "");
     const isPremiumPending = state === "success" && schedulingStatus === "pending";
-    const isPremiumBooked  = state === "success" && pideSuHorario && schedulingStatus === "completed";
+    /*
+      Horario de GRUPO elegido al comprar (2026-10-16). Viaja en la URL de vuelta
+      de Stripe (`&horario=HH:MM`, hora del Pacífico) y se pinta en la zona del
+      dispositivo, igual que en el formulario.
+
+      ⚠️ Quien lo eligió queda con `scheduling_status: "completed"`, y esta
+      pantalla le decía "¡Tu clase ya está agendada! Recibirás un recordatorio por
+      correo" — un recordatorio que no existe, sobre un grupo que aún puede no
+      abrir (auditoría de QA). Para él se cuenta lo que es verdad.
+    */
+    const horarioPt = (() => {
+        const h = searchParams.get("horario");
+        return h && /^\d{2}:\d{2}$/.test(h) ? h : null;
+    })();
+    const horarioDeGrupo = state === "success" && horarioPt && userData?.inscription_date
+        ? (() => {
+            const zona = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+            const hora = new Intl.DateTimeFormat("es-ES", { timeZone: zona, hour: "numeric", minute: "2-digit", hour12: true })
+                .format(ptStringToDate(`${userData.inscription_date}T${horarioPt}`)).replace(/\s/g, " ");
+            const dias = listaDeDias(catalogo?.find(p => p.key === userData?.plan)?.classDays ?? []);
+            return { hora, zona: zona.split("/").pop()?.replace(/_/g, " ") ?? "", dias };
+        })()
+        : null;
+    const isPremiumBooked  = state === "success" && pideSuHorario && schedulingStatus === "completed" && !horarioDeGrupo;
     // Del catálogo, no de la lista de cuatro: ver `esPlanQueRenueva`.
     const isSubscription = esPlanQueRenueva(catalogo, userData?.plan ?? "");
 
@@ -837,6 +883,35 @@ const SuccessContent = () => {
                                                 <button onClick={() => setSkipSlot(false)} className="sc-skip-undo">
                                                     Volver a horarios
                                                 </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Horario de grupo elegido al comprar */}
+                                    {horarioDeGrupo && (
+                                        <div className="sc-booked">
+                                            <div className="sc-booked-icon">
+                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M20 6L9 17l-5-5" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="sc-booked-title">
+                                                    Tu horario: {horarioDeGrupo.hora}{horarioDeGrupo.zona ? ` (${horarioDeGrupo.zona})` : ""}
+                                                </p>
+                                                <p className="sc-booked-sub">
+                                                    {horarioDeGrupo.dias ? `Clases en vivo los ${horarioDeGrupo.dias}. ` : ""}
+                                                    Si tu grupo no reúne el mínimo de alumnos, te avisamos para que elijas otro
+                                                    horario de tu nivel o pases al siguiente inicio, sin pagar de nuevo.
+                                                </p>
+                                                {tokenHorario && (
+                                                    <a
+                                                        href={`/mi-horario?t=${encodeURIComponent(tokenHorario)}`}
+                                                        className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline underline-offset-2"
+                                                    >
+                                                        Cambiar mi horario
+                                                    </a>
+                                                )}
                                             </div>
                                         </div>
                                     )}
