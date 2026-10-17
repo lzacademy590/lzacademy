@@ -17,6 +17,7 @@ const VALID_ROUTES = new Set([
   "/admin/pagos",
   "/admin/recurrentes",
   "/admin/fechas",
+  "/admin/horarios",
   "/admin/niveles",
   "/admin/contenido",
   "/admin/login",

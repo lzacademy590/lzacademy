@@ -285,11 +285,6 @@ export function HorariosDeGrupo({
 
     return (
         <div>
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-[10px] font-black text-emerald-600">2</span>
-                Horarios de grupo por nivel
-            </h2>
-
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
                 <p className="text-sm font-semibold text-gray-700 mb-1">Agregar horario</p>
                 <p className="text-xs text-gray-400 mb-3">

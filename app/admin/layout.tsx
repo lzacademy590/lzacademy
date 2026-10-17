@@ -64,6 +64,11 @@ const ICON = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   ),
+  clock: (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
   key: (
     <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -116,6 +121,7 @@ const navGroups: NavGroup[] = [
       { label: "Contenido", href: "/admin/contenido", icon: ICON.doc },
       { label: "Textos de los correos", href: "/admin/correo-interes", icon: ICON.mail },
       { label: "Fechas de inicio", href: "/admin/fechas", icon: ICON.calendar },
+      { label: "Horarios por grupo", href: "/admin/horarios", icon: ICON.clock },
       { label: "Niveles por plan", href: "/admin/niveles", icon: ICON.layers },
       { label: "Cupos por plan", href: "/admin/cupos", icon: ICON.ticket },
       { label: "Accesos", href: "/admin/accesos", icon: ICON.key },
