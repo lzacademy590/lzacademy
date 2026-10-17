@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
@@ -24,30 +24,42 @@ interface Lead {
     converted: boolean;
 }
 
-interface SendResult {
+/*
+  La campaña se envía EN SEGUNDO PLANO desde el 2026-10-17: el POST responde al
+  momento con esta foto y la pantalla la vuelve a pedir hasta que termina. Antes
+  era una sola petición de hasta una hora, y con «todos» el servidor ni siquiera
+  la aceptaba (413: la lista de ids pasaba de 100 KB).
+*/
+interface Campana {
     id: string;
-    email?: string;
-    status: "sent" | "sent_but_not_marked" | "failed" | "skipped";
-    converted?: boolean;
-    error?: string;
-    reason?: string;
-}
-
-interface SendSummary {
+    estado: "enviando" | "terminada" | "error";
+    asunto: string;
     total: number;
+    procesados: number;
     sent: number;
+    sentButNotMarked: number;
     failed: number;
+    skipped: number;
     converted: number;
-    contactedNotConverted: number;
-    results: SendResult[];
+    iniciada: string;
+    terminada: string | null;
+    error: string | null;
+    fallidos: { email?: string; error?: string }[];
+    omitidos: { email?: string; reason?: string }[];
 }
 
-type FilterKey = "nuevos" | "no_contactados" | "no_convertidos" | "todos";
+const CADA_MS = 4000;
+
+type FilterKey = "nuevos" | "no_contactados" | "no_convertidos" | "convertidos" | "todos";
 
 const FILTERS: { key: FilterKey; label: string; hint: string }[] = [
     { key: "nuevos", label: "Nuevos", hint: "Sin contactar y sin pago" },
     { key: "no_contactados", label: "No contactados", hint: "Aún no marcados como contactados" },
     { key: "no_convertidos", label: "No convertidos", hint: "Aún sin ningún pago registrado" },
+    // Los que ya pagaron (su correo está entre los alumnos). Sirve para escribir
+    // solo a quien ya es alumno — una novedad, una encuesta — sin mezclarlo con
+    // los leads que aún no compran.
+    { key: "convertidos", label: "Convertidos", hint: "Ya tienen un pago registrado" },
     { key: "todos", label: "Todos", hint: "Todos los leads" },
 ];
 
@@ -63,10 +75,22 @@ export default function CorreosMasivos() {
     const [search, setSearch] = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
 
-    const [sending, setSending] = useState(false);
+    const [starting, setStarting] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [summary, setSummary] = useState<SendSummary | null>(null);
+    const [campana, setCampana] = useState<Campana | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Mientras haya una campaña enviándose no se puede lanzar otra.
+    const sending = starting || campana?.estado === "enviando";
+    // Al lanzar una campaña la pantalla sube hasta su progreso: el botón de
+    // enviar está abajo y el progreso arriba, fuera de la vista (medido).
+    const progresoRef = useRef<HTMLDivElement>(null);
+    const [recienLanzada, setRecienLanzada] = useState<string | null>(null);
+    useEffect(() => {
+        if (recienLanzada && campana?.id === recienLanzada) {
+            progresoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setRecienLanzada(null);
+        }
+    }, [recienLanzada, campana]);
 
     // Cerrar el modal de confirmación con Esc (además del click-fuera existente).
     useEscapeKey(confirmOpen && !sending, () => setConfirmOpen(false));
@@ -104,16 +128,61 @@ export default function CorreosMasivos() {
 
     useEffect(() => { load(); }, [load]);
 
+    // Progreso de la campaña. Al entrar se pregunta si hay una en curso —el
+    // admin puede haber cerrado la pestaña a mitad—, y mientras se envía se
+    // vuelve a preguntar cada pocos segundos.
+    const consultarCampana = useCallback(async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return null;
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/leads/bulk-email/estado`, {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return (data?.campana ?? null) as Campana | null;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    useEffect(() => {
+        consultarCampana().then((c) => { if (c) setCampana(c); });
+    }, [consultarCampana]);
+
+    useEffect(() => {
+        if (campana?.estado !== "enviando") return;
+        const t = setTimeout(async () => {
+            const c = await consultarCampana();
+            if (!c) return setCampana((prev) => prev ? { ...prev } : prev); // reintenta en el siguiente ciclo
+            setCampana(c);
+            // Al terminar se recargan los leads: la marca de «contactado» la
+            // escribe el servidor uno por uno.
+            if (c.estado !== "enviando") load();
+        }, CADA_MS);
+        return () => clearTimeout(t);
+    }, [campana, consultarCampana, load]);
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         return leads.filter((l) => {
             if (filter === "nuevos" && (l.contacted || l.converted)) return false;
             if (filter === "no_contactados" && l.contacted) return false;
             if (filter === "no_convertidos" && l.converted) return false;
+            if (filter === "convertidos" && !l.converted) return false;
             if (q && !l.full_name.toLowerCase().includes(q) && !l.email.toLowerCase().includes(q)) return false;
             return true;
         });
     }, [leads, filter, search]);
+
+    // Cuántos hay en cada categoría, para que se vea sin tener que pulsarla.
+    const conteo = useMemo(() => ({
+        nuevos: leads.filter((l) => !l.contacted && !l.converted).length,
+        no_contactados: leads.filter((l) => !l.contacted).length,
+        no_convertidos: leads.filter((l) => !l.converted).length,
+        convertidos: leads.filter((l) => l.converted).length,
+        todos: leads.length,
+    }), [leads]);
 
     const visibleIds = useMemo(() => filtered.map((l) => l.id), [filtered]);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
@@ -141,9 +210,8 @@ export default function CorreosMasivos() {
 
     const handleSend = async () => {
         setConfirmOpen(false);
-        setSending(true);
+        setStarting(true);
         setError(null);
-        setSummary(null);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/leads/bulk-email`, {
@@ -158,22 +226,27 @@ export default function CorreosMasivos() {
                     ids: Array.from(selected),
                 }),
             });
-            const data = await res.json();
+            // Un 413 o un 429 no llegan en JSON: se lee el texto sin lanzar.
+            const texto = await res.text();
+            let data: { error?: string; campana?: Campana } = {};
+            try { data = texto ? JSON.parse(texto) : {}; } catch { /* no era JSON */ }
             if (!res.ok) {
-                setError(data.error || "Error enviando los correos");
+                if (data.campana) setCampana(data.campana);
+                setError(
+                    data.error ||
+                    (res.status === 429 ? "Demasiadas solicitudes. Espera un minuto y vuelve a intentarlo." : `Error del servidor (${res.status}). No se envió ningún correo.`)
+                );
                 return;
             }
-            setSummary(data as SendSummary);
-            // Marca como contactados localmente los que se enviaron correctamente.
-            const sentIds = new Set(
-                (data.results as SendResult[]).filter((r) => r.status === "sent").map((r) => r.id)
-            );
-            setLeads((prev) => prev.map((l) => (sentIds.has(l.id) ? { ...l, contacted: true } : l)));
+            if (data.campana) {
+                setCampana(data.campana);
+                setRecienLanzada(data.campana.id);
+            }
             setSelected(new Set());
         } catch {
-            setError("No se pudo conectar con el servidor");
+            setError("No se pudo conectar con el servidor. No se envió ningún correo.");
         } finally {
-            setSending(false);
+            setStarting(false);
         }
     };
 
@@ -206,31 +279,57 @@ export default function CorreosMasivos() {
                 </p>
             </div>
 
-            {/* Summary banner */}
-            {summary && (
-                <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:p-5">
-                    <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
+            {/* Progreso / resumen de la campaña */}
+            {campana && (() => {
+                const enviados = campana.sent + campana.sentButNotMarked;
+                const pct = campana.total ? Math.round((campana.procesados / campana.total) * 100) : 0;
+                const enCurso = campana.estado === "enviando";
+                const fallo = campana.estado === "error";
+                // ~1,2 s por correo entre la pausa de Resend y la llamada.
+                const minutos = Math.max(1, Math.ceil(((campana.total - campana.procesados) * 1.2) / 60));
+                // Terminada CON fallos no se pinta en verde: «completado» encima de
+                // una lista de fallidos se lee como que todo salió bien.
+                const conFallos = !enCurso && !fallo && campana.failed > 0;
+                const tono = fallo ? "border-red-100 bg-red-50" : enCurso || conFallos ? "border-amber-100 bg-amber-50" : "border-emerald-100 bg-emerald-50";
+                return (
+                    <div ref={progresoRef} className={`mb-6 rounded-2xl border p-4 sm:p-5 scroll-mt-4 ${tono}`} role="status" aria-live="polite">
+                        <p className={`text-sm font-semibold ${fallo ? "text-red-800" : enCurso || conFallos ? "text-amber-800" : "text-emerald-800"}`}>
+                            {enCurso ? "Enviando la campaña…" : fallo ? "La campaña se interrumpió" : conFallos ? "Envío terminado, con fallos" : "Envío completado"}
+                            <span className="font-normal text-gray-500"> · “{campana.asunto}”</span>
+                        </p>
+                        <div className="mt-3 h-2 w-full rounded-full bg-white/70 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${fallo ? "bg-red-400" : enCurso || conFallos ? "bg-amber-400" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-emerald-800">Envío completado</p>
-                            <p className="text-xs text-emerald-700 mt-1">
-                                <strong>{summary.sent}</strong> enviados · <strong>{summary.contactedNotConverted}</strong> contactados (sin pago) ·{" "}
-                                <strong>{summary.converted}</strong> ya convertidos
-                                {summary.failed > 0 && <> · <strong className="text-red-600">{summary.failed} fallidos</strong></>}
+                        <p className="text-xs text-gray-600 mt-2 tabular-nums">
+                            <strong>{campana.procesados}</strong> de <strong>{campana.total}</strong> ({pct}%) ·{" "}
+                            <strong>{enviados}</strong> enviados · <strong>{enviados - campana.converted}</strong> contactados (sin pago) ·{" "}
+                            <strong>{campana.converted}</strong> ya convertidos
+                            {campana.skipped > 0 && <> · {campana.skipped} omitidos</>}
+                            {campana.failed > 0 && <> · <strong className="text-red-600">{campana.failed} fallidos</strong></>}
+                        </p>
+                        {enCurso && (
+                            <p className="text-xs text-amber-700 mt-1">
+                                Quedan unos {minutos} min. Puedes cerrar esta página: el envío sigue en el servidor y al volver verás el progreso.
                             </p>
-                            {summary.failed > 0 && (
-                                <p className="text-xs text-red-500 mt-1">
-                                    Fallidos: {summary.results.filter((r) => r.status === "failed").map((r) => r.email).join(", ")}
-                                </p>
-                            )}
-                        </div>
+                        )}
+                        {fallo && (
+                            <p className="text-xs text-red-600 mt-1">
+                                {campana.error ? `${campana.error}. ` : ""}Lo enviado ya quedó marcado como contactado: para seguir, envía a «No contactados».
+                            </p>
+                        )}
+                        {campana.failed > 0 && !enCurso && (
+                            <p className="text-xs text-red-500 mt-1 break-words">
+                                Fallidos: {campana.fallidos.map((r) => r.email).filter(Boolean).join(", ")}
+                            </p>
+                        )}
+                        {campana.omitidos.some((o) => o.reason?.includes("baja")) && !enCurso && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                Los omitidos por baja pidieron no recibir estos correos y no se marcan como contactados.
+                            </p>
+                        )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {error && (
                 <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
@@ -353,7 +452,7 @@ export default function CorreosMasivos() {
                                                 : "text-gray-500 hover:bg-gray-50"
                                         }`}
                                     >
-                                        {f.label}
+                                        {f.label} <span className="text-gray-400 tabular-nums">({conteo[f.key]})</span>
                                     </button>
                                 ))}
                             </div>
