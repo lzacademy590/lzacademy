@@ -71,6 +71,9 @@ export default function MiHorario() {
     const token = params.get("t") ?? "";
     const [estado, setEstado] = useState<Estado>("cargando");
     const [error, setError] = useState("");
+    // Reintentar solo tiene sentido si falló la RED o el servidor. Ante un enlace
+    // inválido (4xx) se pulsaba una y otra vez sin que nada pudiera cambiar.
+    const [reintentable, setReintentable] = useState(false);
     const [datos, setDatos] = useState<Situacion | null>(null);
     const [propuesto, setPropuesto] = useState<{ h: Horario; cambiaInicio: boolean } | null>(null);
     const [guardando, setGuardando] = useState(false);
@@ -79,16 +82,21 @@ export default function MiHorario() {
     const zona = nombreDeLaZona();
 
     const cargar = useCallback(async () => {
-        if (!token) { setEstado("error"); setError("Falta el enlace. Usa el que te llegó por correo."); return; }
+        if (!token) { setReintentable(false); setEstado("error"); setError("Falta el enlace. Usa el que te llegó por correo."); return; }
         setEstado("cargando");
         try {
             const res = await fetch(`${BACKEND_URL}/mi-horario?t=${encodeURIComponent(token)}`);
             const { data, saturado } = await leerRespuesta(res);
-            if (!res.ok) throw new Error(saturado ? MENSAJE_SATURADO : data?.error || "No pudimos cargar tu horario.");
+            if (!res.ok) {
+                setReintentable(saturado || res.status >= 500);
+                throw new Error(saturado ? MENSAJE_SATURADO : data?.error || "No pudimos cargar tu horario.");
+            }
             setDatos(data as unknown as Situacion);
             setEstado("listo");
         } catch (e) {
-            setError(e instanceof Error ? e.message : "No pudimos cargar tu horario.");
+            // Un fallo de red no trae `res`: ese sí se puede reintentar.
+            if (!(e instanceof Error) || !e.message || e.name === "TypeError") setReintentable(true);
+            setError(e instanceof Error && e.name !== "TypeError" ? e.message : "No pudimos cargar tu horario.");
             setEstado("error");
         }
     }, [token]);
@@ -134,8 +142,11 @@ export default function MiHorario() {
                 <h1 className="text-xl font-extrabold text-zinc-900 mb-2">No pudimos abrir tu horario</h1>
                 <p className="text-sm text-zinc-600 mb-5">{error}</p>
                 <div className="flex flex-wrap gap-3">
-                    <button onClick={cargar} className="rounded-xl bg-falu-red-700 px-4 py-2 text-sm font-semibold text-white">Reintentar</button>
-                    <a href="mailto:info@lz-englishacademy.com" className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700">Escríbenos</a>
+                    {reintentable && (
+                        <button onClick={cargar} className="rounded-xl bg-falu-red-700 px-4 py-2 text-sm font-semibold text-white">Reintentar</button>
+                    )}
+                    <a href="https://chat.whatsapp.com/HhAvLoPoLwf1JsX0aWtnX1" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700">Escríbenos por WhatsApp</a>
+                    <a href="mailto:info@lz-englishacademy.com" className="rounded-xl px-4 py-2 text-sm font-semibold text-zinc-500 underline">o por correo</a>
                 </div>
             </Marco>
         );

@@ -4,14 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartDates } from "../hooks/useStartDates";
 import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
-import { pideHorario, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
+import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
-import { fechaLarga, ptStringToDate, infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
-
-interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
+import { fechaLarga, infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
 
 /*
   Horario de GRUPO por cohorte y nivel (2026-10-16). El backend NO manda el total
@@ -32,29 +30,6 @@ interface HorarioDeClase {
     // no tiene horarios y venda sin pedir uno.
     noAbrio?: boolean;
     cierre?: string;
-}
-
-function buildSlotDisplay(datetimePt: string) {
-    const date = ptStringToDate(datetimePt);
-    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const weekdayMap: Record<string, string> = { Sun:"Dom", Mon:"Lun", Tue:"Mar", Wed:"Mié", Thu:"Jue", Fri:"Vie", Sat:"Sáb" };
-    const monthNames = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-    const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: userTz,
-        weekday: "short", month: "numeric", day: "numeric",
-        hour: "numeric", minute: "2-digit", hour12: true,
-    }).formatToParts(date);
-    const g = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-    const timeStr = `${g("hour")}:${g("minute")} ${g("dayPeriod")}`;
-    const tzAbbr = new Intl.DateTimeFormat("en-US", { timeZone: userTz, timeZoneName: "short" })
-        .formatToParts(date).find(p => p.type === "timeZoneName")?.value ?? "";
-    return {
-        dayName: weekdayMap[g("weekday")] ?? g("weekday"),
-        day: parseInt(g("day")),
-        monthName: monthNames[parseInt(g("month")) - 1],
-        timeStr,
-        tzAbbr,
-    };
 }
 
 // El resumen del plan (tagline + features) vive en el catálogo único (app/lib/plans.ts).
@@ -132,8 +107,6 @@ const PaymentForm = ({
     });
     const [error, setError] = useState("");
     const [accepted, setAccepted] = useState(false);
-    const [premiumSlots, setPremiumSlots] = useState<PremiumSlot[]>([]);
-    const [premiumSlotsLoading, setPremiumSlotsLoading] = useState(false);
     const [horarios, setHorarios] = useState<HorarioDeClase[]>([]);
     const [horariosEstado, setHorariosEstado] = useState<"inactivo" | "cargando" | "listo" | "fallo">("inactivo");
     const [horariosVersion, setHorariosVersion] = useState(0);
@@ -240,6 +213,24 @@ const PaymentForm = ({
         return () => { vivo = false; };
     }, [plan, needsCohorte, formData.interestDate, formData.englishLevel, horariosVersion]);
 
+    /*
+      ¿Este plan USA horarios de grupo (el admin publicó alguno, en cualquier
+      fecha)? Sirve para avisar a quien elige una fecha y nivel que todavía no
+      tienen ninguno: se le vende igual y aparece en el panel (2026-10-17).
+      Falla callado: sin respuesta no se avisa, que es como era antes.
+    */
+    const [planUsaHorarios, setPlanUsaHorarios] = useState(false);
+    useEffect(() => {
+        setPlanUsaHorarios(false);
+        if (!needsCohorte) return;
+        let vivo = true;
+        fetch(`${BACKEND_URL}/config/horarios-de-clase?${new URLSearchParams({ plan })}`)
+            .then(r => (r.ok ? r.json() : []))
+            .then(data => { if (vivo) setPlanUsaHorarios(Array.isArray(data) && data.length > 0); })
+            .catch(() => {});
+        return () => { vivo = false; };
+    }, [plan, needsCohorte]);
+
     const hayHorarios = horarios.length > 0;
     const todosLlenos = hayHorarios && horarios.every(h => h.lleno || h.noAbrio);
     const zonaDelDispositivo = hayHorarios ? nombreDeLaZona() : "";
@@ -271,20 +262,6 @@ const PaymentForm = ({
         fs.querySelector<HTMLInputElement>("input[name=horarioId]:not(:disabled)")?.focus({ preventScroll: true });
     };
     const diasDelPlan = listaDeDias(catalogo?.find(p => p.key === plan)?.classDays ?? []);
-
-    useEffect(() => {
-        // ⚠️ Lo decide el CATÁLOGO, no la lista estática de cuatro: un plan abierto
-        // en Admin › Planes también puede pedir horario, y con `requiresScheduling`
-        // nunca podría — su clave no está en `PLAN_MAP`.
-        if (!pideHorario(catalogo, plan)) { setPremiumSlots([]); return; }
-        setPremiumSlotsLoading(true);
-        // Los horarios se piden POR PLAN: los que no declaran plan valen para todos.
-        fetch(`${BACKEND_URL}/config/premium-slots?plan=${encodeURIComponent(plan)}`)
-            .then(r => r.json())
-            .then(data => setPremiumSlots(Array.isArray(data) ? data : []))
-            .catch(() => setPremiumSlots([]))
-            .finally(() => setPremiumSlotsLoading(false));
-    }, [plan, catalogo]);
 
     const validateForm = () => {
         if (!formData.email || !formData.fullName)
@@ -768,43 +745,6 @@ const PaymentForm = ({
                             )}
                         </div>
 
-                        {/* Horarios disponibles — solo Premium con fecha seleccionada */}
-                        {pideHorario(catalogo, plan) && formData.interestDate && !hayHorarios && horariosEstado !== "cargando" && (() => {
-                            const dateSlots = premiumSlots.filter(s => s.start_date === formData.interestDate);
-                            if (premiumSlotsLoading) return null;
-                            if (dateSlots.length === 0) return (
-                                <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
-                                    <svg className="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 16 16" fill="none">
-                                        <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                                        <path d="M5 2v2M11 2v2M2 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                    </svg>
-                                    Los horarios para esta fecha se publicarán próximamente
-                                </div>
-                            );
-                            return (
-                                <div className="rounded-xl overflow-hidden border border-falu-red-200">
-                                    <div className="flex items-center justify-between px-4 py-2.5 bg-falu-red-50 border-b border-falu-red-100">
-                                        <p className="text-sm font-semibold text-falu-red-900">Horarios de primera clase</p>
-                                        <span className="text-xs text-zinc-400 bg-white border border-zinc-200 px-2 py-0.5 rounded-full">{dateSlots.length} {dateSlots.length === 1 ? "disponible" : "disponibles"}</span>
-                                    </div>
-                                    <div className="px-4 py-3 flex flex-wrap gap-2">
-                                        {dateSlots.map(slot => {
-                                            const { dayName, day, monthName, timeStr, tzAbbr } = buildSlotDisplay(slot.datetime_pt);
-                                            return (
-                                                <span key={slot.id} className="inline-flex flex-col items-center text-center bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 min-w-[90px]">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wide text-falu-red-600">{dayName} {day} {monthName}</span>
-                                                    <span className="text-sm font-semibold text-zinc-800 mt-0.5">{timeStr} <span className="text-[10px] text-zinc-400 font-normal">{tzAbbr}</span></span>
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="px-4 py-2 bg-zinc-50 border-t border-zinc-100">
-                                        <p className="text-xs text-zinc-400">Seleccionarás tu horario después de confirmar el pago</p>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
                         {/* Horario de grupo por cohorte y nivel (2026-10-16) */}
                         {horariosEstado === "fallo" && (
                             <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -812,6 +752,13 @@ const PaymentForm = ({
                                 <button type="button" onClick={() => setHorariosVersion(v => v + 1)} className="font-semibold underline">
                                     Reintentar
                                 </button>
+                            </div>
+                        )}
+                        {planUsaHorarios && !hayHorarios && horariosEstado === "listo" && (
+                            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                                Para esta fecha y nivel todavía no hay horarios de grupo publicados. Puedes inscribirte igual:
+                                cuando el equipo te asigne uno te escribimos por correo, y también podrás elegirlo tú en cuanto
+                                se publiquen, sin pagar de nuevo.
                             </div>
                         )}
                         {hayHorarios && (
@@ -928,20 +875,26 @@ const PaymentForm = ({
                                     cientos de ms antes de que el texto cambie solo. */}
                                 {cohorteLoading ? (
                                     <p className="mt-0.5 text-xs text-falu-red-700">
-                                        Accede hoy a la plataforma.
+                                        Revisando tu fecha de inicio…
                                     </p>
-                                ) : needsCohorte && hayHorarios ? (
-                                    // Con horario de grupo, "las clases grupales del viernes" contradecía
-                                    // al "lunes a jueves" del selector, justo encima (auditoría de UX).
+                                ) : needsCohorte && (hayHorarios || planUsaHorarios) ? (
+                                    /*
+                                      Con horario de grupo, "las clases grupales del viernes" contradecía
+                                      al "lunes a jueves" del selector, justo encima (auditoría de UX).
+                                      ⚠️ Y ya NO dice "Accede hoy a la plataforma" (2026-10-17): la
+                                      plataforma, para el mismo plan y fecha, dice que hasta el inicio
+                                      no hay contenido. Las dos tiendas tienen que prometer lo mismo.
+                                    */
                                     <p className="mt-0.5 text-xs text-falu-red-700">
-                                        Accede hoy a la plataforma. Tus clases en vivo empiezan{" "}
+                                        Empiezas{" "}
                                         {selectedDateLabel
                                             ? <>el <span className="font-bold">{selectedDateLabel}</span></>
-                                            : "en la fecha seleccionada"}, en el horario que elijas.
+                                            : "en la fecha seleccionada"}: ese día se abre tu curso y arrancan tus clases en vivo,
+                                        {hayHorarios ? " en el horario que elijas." : " en tu horario de grupo."}
                                     </p>
                                 ) : needsCohorte ? (
                                     <p className="mt-0.5 text-xs text-falu-red-700">
-                                        Accede hoy a la plataforma. Las clases grupales del viernes y sesiones 1:1 (si aplica) inician{" "}
+                                        Tu curso, las clases grupales del viernes y las sesiones 1:1 (si aplica) inician{" "}
                                         {selectedDateLabel
                                             ? <>el <span className="font-bold">{selectedDateLabel}</span></>
                                             : "en la fecha seleccionada"}.

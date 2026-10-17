@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getPlan, esPlanQueRenueva, pideHorario, planLabel } from "@/app/lib/plans";
+import { getPlan, esPlanQueRenueva, planLabel } from "@/app/lib/plans";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { medirCompra } from "@/app/lib/analitica";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
-
-interface PremiumSlot { id: string; datetime_pt: string; enabled: boolean; }
 
 function ptStringToDate(datetimePt: string): Date {
     const [datePart, timePart] = datetimePt.split("T");
@@ -24,43 +22,6 @@ function ptStringToDate(datetimePt: string): Date {
     const g = (t: string) => parseInt(fmt.find(p => p.type === t)!.value);
     const ptProbe = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour") % 24, g("minute"), g("second"));
     return new Date(probe.getTime() + (probe.getTime() - ptProbe));
-}
-
-function buildSlotDisplay(datetimePt: string) {
-    const date = ptStringToDate(datetimePt);
-    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const weekdayMap: Record<string, string> = { Sun:"Domingo", Mon:"Lunes", Tue:"Martes", Wed:"Miércoles", Thu:"Jueves", Fri:"Viernes", Sat:"Sábado" };
-    const monthNames = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-    const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: userTz,
-        weekday: "short", month: "numeric", day: "numeric",
-        hour: "numeric", minute: "2-digit", hour12: true,
-    }).formatToParts(date);
-    const g = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-    const tzAbbr = new Intl.DateTimeFormat("en-US", { timeZone: userTz, timeZoneName: "short" })
-        .formatToParts(date).find(p => p.type === "timeZoneName")?.value ?? "";
-    return {
-        dayName: weekdayMap[g("weekday")] ?? g("weekday"),
-        day: parseInt(g("day")),
-        monthName: monthNames[parseInt(g("month")) - 1],
-        timeStr: `${g("hour")}:${g("minute")} ${g("dayPeriod")}`,
-        tzAbbr,
-    };
-}
-
-function ptDatetimeToISO(datetimePt: string): string {
-    const datePart = datetimePt.split("T")[0];
-    const testDate = new Date(`${datePart}T12:00:00Z`);
-    const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Los_Angeles",
-        timeZoneName: "shortOffset",
-    } as Intl.DateTimeFormatOptions).formatToParts(testDate);
-    const tzName = parts.find(p => p.type === "timeZoneName")?.value ?? "GMT-7";
-    const match  = tzName.match(/GMT([+-]\d+)/);
-    const offsetHours = match ? parseInt(match[1]) : -7;
-    const sign = offsetHours >= 0 ? "+" : "-";
-    const absOffset = Math.abs(offsetHours);
-    return `${datetimePt}:00${sign}${String(absOffset).padStart(2, "0")}:00`;
 }
 
 // Colores del chip de plan: vienen del catálogo único (app/lib/plans.ts).
@@ -83,20 +44,23 @@ const SuccessContent = () => {
 
     const [state, setState] = useState<UiState>("loading");
     const [userData, setUserData] = useState<any>(null);
-    const [schedulingStatus, setSchedulingStatus] = useState<string | null>(null);
-    // Enlace personal a /mi-horario (2026-10-16): cambiar de horario sin repetir
-    // el formulario. `null` si el backend no lo tiene configurado.
-    const [tokenHorario, setTokenHorario] = useState<string | null>(null);
+    /*
+      ¿Se le manda por correo su enlace a /mi-horario? (2026-10-17). El enlace
+      YA NO llega aquí: /payment-status lo devuelve a quien tenga el `session_id`,
+      y con él se le podía cambiar el grupo. Esta pantalla solo lo anuncia.
+    */
+    const [enlacePorCorreo, setEnlacePorCorreo] = useState(false);
+    /*
+      El horario GUARDADO, de /payment-status (2026-10-17). `undefined` = el
+      backend no lo dijo (uno viejo, durante un despliegue, o no se pudo leer):
+      solo entonces se usa `&horario=` de la URL. Antes era al revés y una
+      pestaña vieja enseñaba como vigente un horario ya cambiado.
+    */
+    const [horarioGuardado, setHorarioGuardado] = useState<{ horaPt: string | null; usaHorarios: boolean } | undefined>(undefined);
     const [amount, setAmount] = useState<number | null>(null);
     const [errorMsg, setErrorMsg] = useState("");
     const [visible, setVisible] = useState(false);
     const [contactMessage, setContactMessage] = useState("En las próximas 24 horas nuestro equipo te contactará con todos los detalles.");
-    const [skipSlot, setSkipSlot]       = useState(false);
-    const [slots, setSlots]             = useState<PremiumSlot[]>([]);
-    const [slotsLoading, setSlotsLoading] = useState(false);
-    const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-    const [bookingSlot, setBookingSlot] = useState(false);
-
     useEffect(() => {
         if (!session_id || !session_id.startsWith("cs_")) {
             setState("error");
@@ -112,8 +76,10 @@ const SuccessContent = () => {
                 if (!res.ok) throw new Error(data?.error || "No se pudo verificar el pago");
                 if (!data?.paid) throw new Error("El pago aún no está confirmado.");
                 setUserData(data.user || null);
-                setSchedulingStatus(data.scheduling_status ?? null);
-                setTokenHorario(typeof data.token_horario === "string" ? data.token_horario : null);
+                setEnlacePorCorreo(data.enlace_horario_por_correo === true);
+                setHorarioGuardado(typeof data.usa_horarios === "boolean"
+                    ? { usaHorarios: data.usa_horarios, horaPt: typeof data.horario_hora_pt === "string" ? data.horario_hora_pt : null }
+                    : undefined);
                 setAmount(data.amount ?? null);
                 setState("success");
                 /*
@@ -149,19 +115,17 @@ const SuccessContent = () => {
     }, [session_id]);
 
     const catalogo = usePlanesDelCatalogo();
-    const pideSuHorario = pideHorario(catalogo, userData?.plan ?? "");
-    const isPremiumPending = state === "success" && schedulingStatus === "pending";
     /*
       Horario de GRUPO elegido al comprar (2026-10-16). Viaja en la URL de vuelta
       de Stripe (`&horario=HH:MM`, hora del Pacífico) y se pinta en la zona del
       dispositivo, igual que en el formulario.
 
-      ⚠️ Quien lo eligió queda con `scheduling_status: "completed"`, y esta
-      pantalla le decía "¡Tu clase ya está agendada! Recibirás un recordatorio por
-      correo" — un recordatorio que no existe, sobre un grupo que aún puede no
-      abrir (auditoría de QA). Para él se cuenta lo que es verdad.
+      ⚠️ Desde el 2026-10-17 es el ÚNICO horario de esta pantalla: el selector
+      de "primera clase" (config.premium_slots) se retiró porque las reglas del
+      producto pasaron a ser los horarios de grupo. Ver CLAUDE.md.
     */
     const horarioPt = (() => {
+        if (horarioGuardado) return horarioGuardado.horaPt;
         const h = searchParams.get("horario");
         return h && /^\d{2}:\d{2}$/.test(h) ? h : null;
     })();
@@ -174,7 +138,14 @@ const SuccessContent = () => {
             return { hora, zona: zona.split("/").pop()?.replace(/_/g, " ") ?? "", dias };
         })()
         : null;
-    const isPremiumBooked  = state === "success" && pideSuHorario && schedulingStatus === "completed" && !horarioDeGrupo;
+    /*
+      Compró un plan que USA horarios de grupo para una fecha y nivel que aún no
+      tenían ninguno (2026-10-17): se le dice y se le da su enlace para elegirlo.
+      Antes este hueco lo tapaba la "primera clase", ya retirada.
+    */
+    const planUsaHorarios = horarioGuardado?.usaHorarios === true;
+    const sinHorarioDeGrupo = state === "success" && !horarioPt && planUsaHorarios &&
+        !cohorteLoading && requiresCohort(userData?.plan ?? "");
     // Del catálogo, no de la lista de cuatro: ver `esPlanQueRenueva`.
     const isSubscription = esPlanQueRenueva(catalogo, userData?.plan ?? "");
 
@@ -192,7 +163,8 @@ const SuccessContent = () => {
           })()
         : null;
     const planMeta = getPlan(userData?.plan)?.chip ?? FALLBACK_CHIP;
-    const firstName = userData?.full_name?.split(" ")[0] ?? null;
+    // Solo el primer nombre: /payment-status ya no devuelve el completo.
+    const firstName = userData?.nombre ?? null;
 
     /**
      * Fecha de inicio a ENSEÑAR, o null si a este plan no le corresponde ninguna.
@@ -216,59 +188,6 @@ const SuccessContent = () => {
           })
         : null;
 
-    useEffect(() => {
-        /*
-          ⚠️⚠️ **Aquí ponía `userData?.plan !== "Premium"`**, un literal, mientras
-          doce líneas más arriba la misma pregunta se contestaba con la bandera. O
-          sea: el plan estaba escrito a mano DOS veces, y la que decidía si se
-          carga el selector de horarios era la peor de las dos. Con eso, ningún
-          plan que no se llame exactamente "Premium" —incluido cualquiera abierto
-          en Admin › Planes— llegaba a ver la pantalla donde se elige la clase.
-        */
-        /*
-          ⚠️⚠️ **El selector se decide por `scheduling_status`, no por el catálogo
-          vivo.** `"pending"` solo se escribe cuando el plan COMPRADO pedía
-          horario, así que ya es la respuesta congelada en el momento del pago.
-          Preguntándole además al catálogo, un cambio del admin entre la compra y
-          esta pantalla dejaba al alumno en `pending` y SIN selector: pagó, se le
-          debe una clase, y no tiene ninguna vía para elegirla.
-
-          (El caso `completed` de abajo sí sigue mirando el catálogo: ahí lo peor
-          que pasa es no pintar una confirmación, no dejar a nadie colgado.)
-        */
-        if (state !== "success" || schedulingStatus !== "pending") return;
-        const inscriptionDate = userData?.inscription_date ?? null;
-        setSlotsLoading(true);
-        // Por plan: un horario sin `plan` declarado sigue valiendo para todos.
-        fetch(`${BACKEND_URL}/config/premium-slots?plan=${encodeURIComponent(userData?.plan ?? "")}`)
-            .then(r => r.json())
-            .then(data => {
-                const all: PremiumSlot[] = Array.isArray(data) ? data : [];
-                setSlots(inscriptionDate ? all.filter(s => (s as any).start_date === inscriptionDate) : all);
-            })
-            .catch(() => setSlots([]))
-            .finally(() => setSlotsLoading(false));
-        // ⚠️ `pideSuHorario` NO va en las dependencias, y es deliberado: este
-        // efecto NO consulta el catálogo —lo explica el comentario de arriba— así
-        // que tenerlo aquí solo forzaba un refetch de los horarios cada vez que el
-        // catálogo llegaba. El código contradecía a su propio comentario. Lo
-        // señaló la revisión del PR #14.
-    }, [state, userData?.plan, userData?.inscription_date, schedulingStatus]);
-
-    const handleConfirmSlot = async () => {
-        if (!selectedSlot) return;
-        setBookingSlot(true);
-        try {
-            await fetch(`${BACKEND_URL}/mark-scheduled`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id, session_datetime: ptDatetimeToISO(selectedSlot) }),
-            });
-            setSchedulingStatus("completed");
-        } catch (_) {}
-        setBookingSlot(false);
-    };
-
     const steps = [
         {
             title: "Confirmación enviada",
@@ -288,13 +207,6 @@ const SuccessContent = () => {
                 : "Te enviamos los accesos a la plataforma hoy mismo, para que puedas empezar ya.",
         },
     ];
-
-    const premiumSteps = [
-        { title: "Selecciona tu horario", desc: "Elige entre los horarios disponibles para tu primera clase Premium." },
-        ...steps,
-    ];
-
-    const displaySteps = (isPremiumPending && !skipSlot) ? premiumSteps : steps;
 
     return (
         <>
@@ -344,7 +256,6 @@ const SuccessContent = () => {
                     transform: translateY(20px);
                     transition: opacity 0.5s cubic-bezier(.22,1,.36,1), transform 0.5s cubic-bezier(.22,1,.36,1);
                 }
-                .sc-card.sc-wide { max-width: 720px; }
                 .sc-card.visible { opacity: 1; transform: translateY(0); }
 
                 /* Top accent bar */
@@ -597,82 +508,6 @@ const SuccessContent = () => {
                 .sc-loading-title { font-family: 'Playfair Display', serif; font-size: 1.375rem; font-weight: 700; color: #18181b; margin: 0 0 6px; }
                 .sc-loading-sub   { font-size: 0.875rem; color: #a1a1aa; margin: 0; }
 
-                /* ── Skip / no agendar ── */
-                .sc-skip-row {
-                    text-align: center; padding: 14px 0 2px;
-                }
-                .sc-skip-btn {
-                    background: none; border: none; cursor: pointer;
-                    font-size: 0.8125rem; font-weight: 500; color: #a1a1aa;
-                    font-family: 'DM Sans', sans-serif;
-                    text-decoration: underline; text-underline-offset: 3px;
-                    transition: color 0.15s;
-                }
-                .sc-skip-btn:hover { color: #71717a; }
-
-                .sc-skip-card {
-                    display: flex; align-items: flex-start; gap: 14px;
-                    background: #fef2f2; border: 1px solid #ffc9cb;
-                    border-radius: 16px; padding: 18px 20px; margin-bottom: 24px;
-                }
-                .sc-skip-icon {
-                    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-                    background: rgba(156,24,29,0.08);
-                    display: flex; align-items: center; justify-content: center;
-                    margin-top: 1px;
-                }
-                .sc-skip-title { font-size: 0.875rem; font-weight: 700; color: #18181b; margin: 0 0 5px; }
-                .sc-skip-desc  { font-size: 0.8125rem; color: #71717a; margin: 0 0 12px; line-height: 1.55; }
-                .sc-skip-undo {
-                    background: none; border: 1px solid rgba(156,24,29,0.25);
-                    border-radius: 8px; padding: 6px 14px;
-                    font-size: 0.8125rem; font-weight: 600; color: #9c181d;
-                    font-family: 'DM Sans', sans-serif; cursor: pointer;
-                    transition: background 0.15s;
-                }
-                .sc-skip-undo:hover { background: rgba(156,24,29,0.06); }
-
-                /* ── Slot picker ── */
-                .sc-slots-section { margin-bottom: 24px; }
-                .sc-slots-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
-                    gap: 10px;
-                    margin-top: 4px;
-                }
-                .sc-slot-card {
-                    position: relative;
-                    background: #fafafa;
-                    border: 1.5px solid #e4e4e7;
-                    border-radius: 14px;
-                    padding: 14px 10px 12px;
-                    text-align: center;
-                    cursor: pointer;
-                    transition: all 0.15s ease;
-                    font-family: 'DM Sans', sans-serif;
-                }
-                .sc-slot-card:hover {
-                    border-color: #9c181d;
-                    background: #fff8f8;
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(156,24,29,0.08);
-                }
-                .sc-slot-card.selected {
-                    border-color: #9c181d;
-                    background: linear-gradient(135deg, #fef2f2 0%, #fff8eb 100%);
-                    box-shadow: 0 4px 16px rgba(156,24,29,0.12);
-                }
-                .sc-slot-day   { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #9c181d; margin-bottom: 5px; }
-                .sc-slot-date  { font-size: 0.875rem; font-weight: 700; color: #18181b; margin-bottom: 6px; line-height: 1.2; }
-                .sc-slot-time  { font-size: 0.8125rem; font-weight: 600; color: #52525b; }
-                .sc-slot-tz    { font-size: 0.625rem; color: #a1a1aa; font-weight: 500; }
-                .sc-slot-check {
-                    position: absolute; top: 7px; right: 7px;
-                    width: 18px; height: 18px; border-radius: 50%;
-                    background: #9c181d; color: white;
-                    display: flex; align-items: center; justify-content: center;
-                }
-
                 @media (max-width: 520px) {
                     .sc-root { padding: 24px 12px 56px; }
                     .sc-hero { padding: 28px 20px 24px; }
@@ -697,7 +532,7 @@ const SuccessContent = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className={`sc-card${isPremiumPending ? " sc-wide" : ""}${visible ? " visible" : ""}`}>
+                    <div className={`sc-card${visible ? " visible" : ""}`}>
 
                         {/* Accent bar */}
                         <div className="sc-bar" />
@@ -792,101 +627,6 @@ const SuccessContent = () => {
 
                             {state === "success" && (
                                 <>
-                                    {/* Slot picker — Premium pending */}
-                                    {isPremiumPending && !skipSlot && (
-                                        <div className="sc-slots-section">
-                                            <div className="sc-section-head">
-                                                <span className="sc-section-badge">1</span>
-                                                <div>
-                                                    <p className="sc-section-title">Selecciona tu horario</p>
-                                                    {/* ⚠️ El nombre del plan, no el literal "Premium": la decisión de MOSTRAR
-    esto se hizo dinámica y el texto de dentro se quedó atrás, así que a un
-    plan abierto en el admin se le nombraba otro plan justo después de pagar. */}
-                                                    <p className="sc-section-sub">Primera clase de {planLabel(userData?.plan ?? "")} · en tu zona horaria</p>
-                                                </div>
-                                            </div>
-
-                                            {slotsLoading ? (
-                                                <div style={{ padding: "20px", textAlign: "center", color: "#a1a1aa", fontSize: "0.875rem" }}>
-                                                    Cargando horarios disponibles…
-                                                </div>
-                                            ) : slots.length === 0 ? (
-                                                <div style={{ padding: "18px 20px", background: "#fafafa", border: "1px solid #f0f0f0", borderRadius: "14px", color: "#71717a", fontSize: "0.875rem" }}>
-                                                    No hay horarios disponibles en este momento. Nuestro equipo te contactará para coordinar tu horario.
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="sc-slots-grid">
-                                                        {slots.map(slot => {
-                                                            const { dayName, day, monthName, timeStr, tzAbbr } = buildSlotDisplay(slot.datetime_pt);
-                                                            const isSelected = selectedSlot === slot.datetime_pt;
-                                                            return (
-                                                                <button
-                                                                    key={slot.id}
-                                                                    onClick={() => setSelectedSlot(isSelected ? null : slot.datetime_pt)}
-                                                                    className={`sc-slot-card${isSelected ? " selected" : ""}`}
-                                                                >
-                                                                    <div className="sc-slot-day">{dayName}</div>
-                                                                    <div className="sc-slot-date">{day} de {monthName}</div>
-                                                                    <div className="sc-slot-time">{timeStr} <span className="sc-slot-tz">{tzAbbr}</span></div>
-                                                                    {isSelected && (
-                                                                        <div className="sc-slot-check">
-                                                                            <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                                <path d="M10 3L5 9 2 6" />
-                                                                            </svg>
-                                                                        </div>
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                    {selectedSlot && (
-                                                        <button
-                                                            onClick={handleConfirmSlot}
-                                                            disabled={bookingSlot}
-                                                            className="sc-btn sc-btn-primary"
-                                                            style={{ marginTop: "14px" }}
-                                                        >
-                                                            {bookingSlot ? "Confirmando…" : "Confirmar horario"}
-                                                        </button>
-                                                    )}
-                                                </>
-                                            )}
-
-                                            <div className="sc-skip-row">
-                                                <button onClick={() => setSkipSlot(true)} className="sc-skip-btn">
-                                                    No puedo agendar ahora
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Fallback: no agendó */}
-                                    {isPremiumPending && skipSlot && (
-                                        <div className="sc-skip-card">
-                                            <div className="sc-skip-icon">
-                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
-                                                    <circle cx="10" cy="10" r="8" />
-                                                    <path d="M10 6v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <p className="sc-skip-title">Sin problema, puedes agendarlo después</p>
-                                                <p className="sc-skip-desc">
-                                                    Nuestro equipo te contactará para coordinar el horario de tu primera clase.
-                                                    Si necesitas ayuda, escríbenos a{" "}
-                                                    <a href="mailto:info@lz-englishacademy.com" style={{ color: "#9c181d", fontWeight: 600 }}>
-                                                        info@lz-englishacademy.com
-                                                    </a>{" "}
-                                                    con tu referencia de pago.
-                                                </p>
-                                                <button onClick={() => setSkipSlot(false)} className="sc-skip-undo">
-                                                    Volver a horarios
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
                                     {/* Horario de grupo elegido al comprar */}
                                     {horarioDeGrupo && (
                                         <div className="sc-booked">
@@ -904,29 +644,35 @@ const SuccessContent = () => {
                                                     Si tu grupo no reúne el mínimo de alumnos, te avisamos para que elijas otro
                                                     horario de tu nivel o pases al siguiente inicio, sin pagar de nuevo.
                                                 </p>
-                                                {tokenHorario && (
-                                                    <a
-                                                        href={`/mi-horario?t=${encodeURIComponent(tokenHorario)}`}
-                                                        className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline underline-offset-2"
-                                                    >
-                                                        Cambiar mi horario
-                                                    </a>
+                                                {enlacePorCorreo && (
+                                                    <p className="sc-booked-sub" style={{ marginTop: 6 }}>
+                                                        Te enviamos por correo tu enlace para cambiar de horario, por si lo necesitas.
+                                                    </p>
                                                 )}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Premium booked */}
-                                    {isPremiumBooked && (
-                                        <div className="sc-booked">
-                                            <div className="sc-booked-icon">
-                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M20 6L9 17l-5-5" />
+                                    {/* Compró sin horario de grupo publicado */}
+                                    {sinHorarioDeGrupo && (
+                                        <div className="sc-date-row">
+                                            <div className="sc-date-icon">
+                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
+                                                    <circle cx="10" cy="10" r="8" />
+                                                    <path d="M10 6v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
                                                 </svg>
                                             </div>
                                             <div>
-                                                <p className="sc-booked-title">¡Tu clase ya está agendada!</p>
-                                                <p className="sc-booked-sub">Recibirás un recordatorio por correo antes de tu sesión.</p>
+                                                <p className="sc-date-label">Tu horario de grupo</p>
+                                                <p className="sc-date-value">Todavía por elegir</p>
+                                                <p style={{ fontSize: "0.75rem", color: "#71717a", margin: "3px 0 0", lineHeight: 1.5 }}>
+                                                    Para tu fecha y nivel aún no había horarios publicados. Cuando el equipo te asigne uno te escribimos por correo; también puedes elegirlo tú en cuanto se publiquen, sin pagar de nuevo.
+                                                </p>
+                                                {enlacePorCorreo && (
+                                                    <p style={{ fontSize: "0.75rem", color: "#71717a", margin: "6px 0 0", lineHeight: 1.5 }}>
+                                                        Te enviamos por correo tu enlace personal para elegirlo (asunto: «Tu enlace para cambiar tu horario de clase»).
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -988,12 +734,12 @@ const SuccessContent = () => {
                                     {/* Timeline */}
                                     <div className="sc-steps-wrap">
                                         <p className="sc-steps-head">
-                                            {isPremiumPending ? "Después de confirmar" : "¿Qué sigue?"}
+                                            ¿Qué sigue?
                                         </p>
                                         <div className="sc-timeline">
-                                            {displaySteps.map((step, i) => (
+                                            {steps.map((step, i) => (
                                                 <div className="sc-tl-item" key={i}>
-                                                    {i < displaySteps.length - 1 && <div className="sc-tl-connector" />}
+                                                    {i < steps.length - 1 && <div className="sc-tl-connector" />}
                                                     <div className="sc-tl-dot">{i + 1}</div>
                                                     <div className="sc-tl-body">
                                                         <p className="sc-tl-title">{step.title}</p>

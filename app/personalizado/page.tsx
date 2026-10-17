@@ -139,7 +139,7 @@ function PersonalizadoPlanContent() {
                     className="mt-5 text-[11.5px] lg:text-[13px] font-bold not-italic text-zinc-700"
                   />
                   <p className="mt-2 text-[11.5px] lg:text-[13px] leading-relaxed italic" style={{ color: "#C0353E" }}>
-                    Agendas tu primera sesión y definimos juntos el plan. Accede hoy a la plataforma. Las clases en vivo inician en la fecha seleccionada en el formulario.
+                    Agendas tu primera sesión y definimos juntos el plan. Tu curso y tus clases en vivo empiezan en la fecha de inicio que elijas en el formulario.
                   </p>
                 </div>
 
