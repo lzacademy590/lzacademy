@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartDates } from "../hooks/useStartDates";
 import { useLevelAvailability } from "../hooks/useLevelAvailability";
 import { usePlanCohorte } from "../hooks/usePlanCohorte";
@@ -8,25 +8,30 @@ import { pideHorario, planesDeCheckout, descripcionDeCheckout } from "@/app/lib/
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
+import { listaDeDias } from "@/app/lib/dias-de-clase";
+import { fechaLarga, ptStringToDate, infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
 
 interface PremiumSlot { id: string; datetime_pt: string; start_date: string; enabled: boolean; }
 
-function ptStringToDate(datetimePt: string): Date {
-    // datetime_pt is PT (America/Los_Angeles) local time without timezone info.
-    // Interpret it as PT and return the correct UTC Date.
-    const [datePart, timePart] = datetimePt.split("T");
-    const [y, mo, d] = datePart.split("-").map(Number);
-    const [h, m, s = 0] = timePart.split(":").map(Number);
-    const probe = new Date(Date.UTC(y, mo - 1, d, h, m, s));
-    const fmt = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Los_Angeles",
-        year: "numeric", month: "numeric", day: "numeric",
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-        hour12: false,
-    }).formatToParts(probe);
-    const g = (t: string) => parseInt(fmt.find(p => p.type === t)!.value);
-    const ptProbe = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour") % 24, g("minute"), g("second"));
-    return new Date(probe.getTime() + (probe.getTime() - ptProbe));
+/*
+  Horario de GRUPO por cohorte y nivel (2026-10-16). El backend NO manda el total
+  inscrito a propósito: "1 de 5" en un horario recién abierto desanima, así que
+  solo se dice cuántos faltan para abrirlo. Ver horarios.service.js.
+*/
+interface HorarioDeClase {
+    id: string;
+    start_date: string;
+    hora_pt: string;
+    minimo: number;
+    faltan: number;
+    confirmado: boolean;
+    lleno: boolean;
+    restantes: number | null;
+    // Pasado el cierre (3 días antes del inicio) sin el mínimo: no abre. Llega
+    // DESHABILITADO, no se esconde, para que el formulario no crea que ese nivel
+    // no tiene horarios y venda sin pedir uno.
+    noAbrio?: boolean;
+    cierre?: string;
 }
 
 function buildSlotDisplay(datetimePt: string) {
@@ -123,11 +128,20 @@ const PaymentForm = ({
         country: "",
         englishLevel: selectedNivel,
         interestDate: "",
+        horarioId: "",
     });
     const [error, setError] = useState("");
     const [accepted, setAccepted] = useState(false);
     const [premiumSlots, setPremiumSlots] = useState<PremiumSlot[]>([]);
     const [premiumSlotsLoading, setPremiumSlotsLoading] = useState(false);
+    const [horarios, setHorarios] = useState<HorarioDeClase[]>([]);
+    const [horariosEstado, setHorariosEstado] = useState<"inactivo" | "cargando" | "listo" | "fallo">("inactivo");
+    const [horariosVersion, setHorariosVersion] = useState(0);
+    // El error del horario se pinta DENTRO del selector: en el hueco común del
+    // formulario quedaba a una o dos pantallas del botón y parecía que pagar no
+    // hacía nada (auditoría de UX, bloqueante).
+    const [horarioError, setHorarioError] = useState("");
+    const selectorDeHorarioRef = useRef<HTMLFieldSetElement>(null);
 
     // Label legible de la fecha elegida (p. ej. "29 de junio de 2026"), para
     // mostrarla en la nota, el checkbox y enviarla a Stripe.
@@ -187,7 +201,76 @@ const PaymentForm = ({
 
     // Re-confirmación obligatoria: si cambia el plan o la fecha, se desmarca el
     // checkbox para que el alumno acepte la fecha vigente (no una anterior).
+    // ⚠️ El HORARIO no está aquí a propósito: la casilla habla de la fecha, y
+    // desmarcarla al elegir horario apagaba el botón sin decir por qué.
     useEffect(() => { setAccepted(false); }, [plan, formData.interestDate]);
+
+    /*
+      Horarios de grupo para ESTA combinación de plan, fecha y nivel. Cambiar
+      cualquiera de las tres borra la elección: un horario es de una fecha y un
+      nivel concretos, y arrastrarlo a otra combinación lo mandaría al checkout
+      para que el servidor lo rechace.
+    */
+    useEffect(() => {
+        setFormData(prev => (prev.horarioId ? { ...prev, horarioId: "" } : prev));
+        setHorarioError("");
+        // La lista vieja se retira YA: mientras carga la nueva, sus radios
+        // seguían pulsables y mandaban un horario de otro nivel.
+        setHorarios([]);
+        if (!needsCohorte || !formData.interestDate || !formData.englishLevel) {
+            setHorarios([]);
+            setHorariosEstado("inactivo");
+            return;
+        }
+        let vivo = true;
+        setHorariosEstado("cargando");
+        const q = new URLSearchParams({ plan, start_date: formData.interestDate, level: formData.englishLevel });
+        fetch(`${BACKEND_URL}/config/horarios-de-clase?${q}`)
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+            .then(data => {
+                if (!vivo) return;
+                const lista: HorarioDeClase[] = Array.isArray(data) ? data : [];
+                setHorarios(lista);
+                setHorariosEstado("listo");
+                // Un único horario con lugar se deja elegido: es el único posible.
+                const libres = lista.filter(h => !h.lleno && !h.noAbrio);
+                if (libres.length === 1) setFormData(prev => ({ ...prev, horarioId: libres[0].id }));
+            })
+            .catch(() => { if (vivo) { setHorarios([]); setHorariosEstado("fallo"); } });
+        return () => { vivo = false; };
+    }, [plan, needsCohorte, formData.interestDate, formData.englishLevel, horariosVersion]);
+
+    const hayHorarios = horarios.length > 0;
+    const todosLlenos = hayHorarios && horarios.every(h => h.lleno || h.noAbrio);
+    const zonaDelDispositivo = hayHorarios ? nombreDeLaZona() : "";
+    /*
+      Qué pasa si el horario no llega al mínimo, dicho con QUIÉN avisa, CUÁNDO y
+      SIN pagar de nuevo. ⚠️ Decisión del negocio (2026-10-16): no se ofrece la
+      devolución; el alumno elige otro horario o el siguiente inicio desde su
+      enlace. Con un solo horario en ese inicio no hay "otro de tu nivel" que
+      prometer, así que solo se ofrece el siguiente inicio.
+    */
+    const avisoDelMinimo = (() => {
+        if (!hayHorarios) return "";
+        const minimos = new Set(horarios.map(h => h.minimo));
+        const n = minimos.size === 1 ? horarios[0].minimo : null;
+        const cuantos = n === null ? "el mínimo de alumnos" : `${n} ${n === 1 ? "alumno" : "alumnos"}`;
+        const cierre = fechaLarga(horarios[0].cierre);
+        const cuando = cierre ? ` el ${cierre}` : " antes del inicio";
+        const abiertos = horarios.filter(h => !h.noAbrio).length;
+        return abiertos <= 1
+            ? `Este horario se abre con ${cuantos}. Si no los reúne, te avisamos${cuando} para que elijas un horario del siguiente inicio, sin pagar de nuevo.`
+            : `Cada horario se abre con ${cuantos}. Si el tuyo no los reúne, te avisamos${cuando} para que elijas otro horario de tu nivel o pases al siguiente inicio, sin pagar de nuevo.`;
+    })();
+
+    const avisarHorario = (mensaje: string) => {
+        setHorarioError(mensaje);
+        const fs = selectorDeHorarioRef.current;
+        if (!fs) return;
+        fs.scrollIntoView({ behavior: "smooth", block: "center" });
+        fs.querySelector<HTMLInputElement>("input[name=horarioId]:not(:disabled)")?.focus({ preventScroll: true });
+    };
+    const diasDelPlan = listaDeDias(catalogo?.find(p => p.key === plan)?.classDays ?? []);
 
     useEffect(() => {
         // ⚠️ Lo decide el CATÁLOGO, no la lista estática de cuatro: un plan abierto
@@ -260,6 +343,7 @@ const PaymentForm = ({
             return;
         }
         setFormData((prev) => ({ ...prev, [name]: value }));
+        if (name === "horarioId") setHorarioError("");
         if (name === "email") setEmailSuggestion(null);
         setError("");
     };
@@ -275,6 +359,13 @@ const PaymentForm = ({
         // el alumno se quedaría sin horario de clase asignado.
         if (needsCohorte && !formData.interestDate) {
             setError("Selecciona tu fecha de inicio."); return;
+        }
+        if (hayHorarios && !formData.horarioId) {
+            setError("");
+            avisarHorario(todosLlenos
+                ? "No quedan lugares en este nivel para esta fecha. Elige otra fecha de inicio."
+                : "Elige uno de estos horarios para continuar.");
+            return;
         }
         if (!accepted) {
             setError(needsCohorte
@@ -316,6 +407,14 @@ const PaymentForm = ({
                     level: formData.englishLevel,
                     interestDate: formData.interestDate,
                     interestDateLabel: selectedDateLabel,
+                    horarioId: formData.horarioId || undefined,
+                    // La hora tal como la vio, para que el recibo de Stripe diga lo mismo.
+                    horarioEtiqueta: (() => {
+                        const h = horarios.find(x => x.id === formData.horarioId);
+                        if (!h) return undefined;
+                        const zona = nombreDeLaZona();
+                        return `${infoDeLaHora(h.start_date, h.hora_pt).hora}${zona ? `, ${zona}` : ""}`.slice(0, 60);
+                    })(),
                     description: descripcionDeCheckout(planActual),
                     motive: selectedDificultades || "no especificado",
                 }),
@@ -331,6 +430,14 @@ const PaymentForm = ({
                     return;
                 }
                 // Plan sin cupos: mensaje claro en vez del error genérico de pago.
+                // Horario lleno, retirado o sin elegir: se dice y se recarga la
+                // lista, para que el alumno vea el estado de AHORA y elija otro.
+                if (res.status === 409 && typeof data?.code === "string" && data.code.startsWith("HORARIO_")) {
+                    avisarHorario(data.error || "Elige otro horario.");
+                    setHorariosVersion(v => v + 1);
+                    setLoading(false);
+                    return;
+                }
                 if (res.status === 409 && data?.code === "PLAN_SOLD_OUT") {
                     setError("Este plan ya no tiene cupos disponibles.");
                     setLoading(false);
@@ -662,7 +769,7 @@ const PaymentForm = ({
                         </div>
 
                         {/* Horarios disponibles — solo Premium con fecha seleccionada */}
-                        {pideHorario(catalogo, plan) && formData.interestDate && (() => {
+                        {pideHorario(catalogo, plan) && formData.interestDate && !hayHorarios && horariosEstado !== "cargando" && (() => {
                             const dateSlots = premiumSlots.filter(s => s.start_date === formData.interestDate);
                             if (premiumSlotsLoading) return null;
                             if (dateSlots.length === 0) return (
@@ -698,6 +805,115 @@ const PaymentForm = ({
                             );
                         })()}
 
+                        {/* Horario de grupo por cohorte y nivel (2026-10-16) */}
+                        {horariosEstado === "fallo" && (
+                            <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                <span>No pudimos cargar los horarios de clase.</span>
+                                <button type="button" onClick={() => setHorariosVersion(v => v + 1)} className="font-semibold underline">
+                                    Reintentar
+                                </button>
+                            </div>
+                        )}
+                        {hayHorarios && (
+                            <fieldset
+                                ref={selectorDeHorarioRef}
+                                className={`rounded-xl overflow-hidden border scroll-mt-24 ${horarioError ? "border-red-400 ring-2 ring-red-100" : "border-zinc-200"}`}
+                            >
+                                <legend className="sr-only">Horario de tu clase</legend>
+                                {/* Cabecera NEUTRA: en rojo parecía un error antes de tocar nada. */}
+                                <div className="px-4 py-2.5 bg-zinc-50 border-b border-zinc-100">
+                                    <p className="text-sm font-semibold text-zinc-900">Elige el horario de tu clase *</p>
+                                    <p className="text-xs text-zinc-600 mt-0.5">
+                                        {diasDelPlan ? `Clases en vivo los ${diasDelPlan}. ` : ""}
+                                        Horas de tu dispositivo{zonaDelDispositivo ? ` (${zonaDelDispositivo})` : ""}.
+                                    </p>
+                                </div>
+                                {horarioError && (
+                                    <p role="alert" className="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none">
+                                            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                                            <path d="M8 5v3.5M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                        </svg>
+                                        {horarioError}
+                                    </p>
+                                )}
+                                {todosLlenos && (
+                                    <p className="mx-3 mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+                                        No quedan horarios disponibles en este nivel para esta fecha. Elige otra fecha de inicio
+                                        o escríbenos por WhatsApp y te ayudamos.
+                                    </p>
+                                )}
+                                <div className="p-3 space-y-2" role="radiogroup" aria-label="Horario de tu clase">
+                                    {horarios.map(h => {
+                                        const info = infoDeLaHora(h.start_date, h.hora_pt);
+                                        const elegido = formData.horarioId === h.id;
+                                        const cerrado = h.lleno || !!h.noAbrio;
+                                        const estado = h.noAbrio
+                                            ? "No reunió el mínimo de alumnos. Elige otro horario"
+                                            : h.lleno
+                                            ? "Sin lugares. Elige otro horario"
+                                            : h.confirmado
+                                                ? h.restantes !== null
+                                                    ? `Horario confirmado · quedan ${h.restantes} ${h.restantes === 1 ? "lugar" : "lugares"}`
+                                                    : "Horario confirmado"
+                                                : `Necesita ${h.faltan} ${h.faltan === 1 ? "alumno" : "alumnos"} más para abrir`;
+                                        return (
+                                            <label
+                                                key={h.id}
+                                                className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                                                    cerrado
+                                                        ? "cursor-not-allowed border-zinc-200 bg-zinc-50"
+                                                        : elegido
+                                                            ? "cursor-pointer border-falu-red-400 bg-falu-red-50 ring-2 ring-falu-red-200"
+                                                            : "cursor-pointer border-zinc-200 bg-white hover:border-zinc-300"
+                                                }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="horarioId"
+                                                    value={h.id}
+                                                    checked={elegido}
+                                                    disabled={cerrado}
+                                                    // Sin esto el lector de pantalla anunciaba el ID ("h-int-am").
+                                                    aria-label={`${info.hora}, ${estado}`}
+                                                    onChange={handleChange}
+                                                    className="h-4 w-4 accent-falu-red-600"
+                                                />
+                                                <span className="flex-1 min-w-0">
+                                                    <span className={`block text-sm font-semibold ${cerrado ? "text-zinc-500" : "text-zinc-900"}`}>
+                                                        {info.hora}
+                                                        {info.desfaseDia !== 0 && (
+                                                            <span className="ml-1.5 text-[11px] font-medium text-amber-700">
+                                                                {info.desfaseDia > 0 ? "(del día siguiente en tu zona)" : "(del día anterior en tu zona)"}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className={`block text-xs mt-0.5 ${cerrado ? "text-zinc-500" : "text-zinc-600"}`}>{estado}</span>
+                                                    {info.horaTrasCambio && (
+                                                        <span className="block text-[11px] text-zinc-500 mt-0.5">
+                                                            Por el cambio de horario de verano, a mitad del ciclo pasa a las {info.horaTrasCambio}.
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                                                    cerrado
+                                                        ? "bg-zinc-200 text-zinc-600"
+                                                        : h.confirmado ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+                                                }`}>
+                                                    {h.noAbrio ? "Cerrado" : h.lleno ? "Lleno" : h.confirmado ? "Confirmado" : "Por confirmar"}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                <div className="px-4 py-2.5 bg-zinc-50 border-t border-zinc-100">
+                                    <p className="text-xs text-zinc-600 leading-relaxed">
+                                        {avisoDelMinimo}
+                                    </p>
+                                </div>
+                            </fieldset>
+                        )}
+
                         {/* Nota de inicio */}
                         <div className="flex items-start gap-2 rounded-xl bg-falu-red-50 border border-falu-red-100 px-4 py-3">
                             <svg className="mt-0.5 h-4 w-4 shrink-0 text-falu-red-500" viewBox="0 0 16 16" fill="none">
@@ -713,6 +929,15 @@ const PaymentForm = ({
                                 {cohorteLoading ? (
                                     <p className="mt-0.5 text-xs text-falu-red-700">
                                         Accede hoy a la plataforma.
+                                    </p>
+                                ) : needsCohorte && hayHorarios ? (
+                                    // Con horario de grupo, "las clases grupales del viernes" contradecía
+                                    // al "lunes a jueves" del selector, justo encima (auditoría de UX).
+                                    <p className="mt-0.5 text-xs text-falu-red-700">
+                                        Accede hoy a la plataforma. Tus clases en vivo empiezan{" "}
+                                        {selectedDateLabel
+                                            ? <>el <span className="font-bold">{selectedDateLabel}</span></>
+                                            : "en la fecha seleccionada"}, en el horario que elijas.
                                     </p>
                                 ) : needsCohorte ? (
                                     <p className="mt-0.5 text-xs text-falu-red-700">
