@@ -93,7 +93,6 @@ const navGroups: NavGroup[] = [
       { label: "Inicio", href: "/admin/dashboard", icon: ICON.home },
       { label: "Pagos", href: "/admin/pagos", icon: ICON.payments },
       { label: "Búsqueda", href: "/admin/busqueda", icon: ICON.search },
-      { label: "Premium · Agenda", href: "/admin/premium-agenda", icon: ICON.premium },
     ],
   },
   {

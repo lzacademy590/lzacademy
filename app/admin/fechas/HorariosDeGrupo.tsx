@@ -28,7 +28,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { todayPT } from "../_utils/ptTime";
 
-interface Alumno { id: number; full_name: string | null; email: string; }
+// `origen: "plataforma"`: compró en la plataforma (2026-10-17). No tiene id aquí:
+// se mueve por correo, con su propia ruta.
+interface Alumno { id: number | null; full_name: string | null; email: string; origen?: "website" | "plataforma"; }
 interface CambioDeInicio {
     email: string;
     nombre: string | null;
@@ -39,8 +41,16 @@ interface CambioDeInicio {
     origen: "alumno" | "automatico";
     en: string;
 }
+// Compró sin horario: su fecha y nivel no tenían ninguno publicado (2026-10-17).
+interface AlumnoSinElegir extends Alumno {
+    plan: string | null;
+    familia?: string | null;
+    level: string | null;
+    inscription_date: string | null;
+}
 interface AlumnoSinHorario extends Alumno {
     plan: string | null;
+    familia?: string | null;
     level: string | null;
     inscription_date: string | null;
     horario_id: string;
@@ -69,6 +79,8 @@ const NIVELES: { value: string; label: string }[] = [
     { value: "Intermedio", label: "Intermedio (B1)" },
     { value: "Intermedio alto", label: "Intermedio alto (B2)" },
 ];
+// B2.1 y B2.2 estudian en los grupos de "Intermedio alto" (2026-10-17).
+const grupoDeNivel = (v: string | null) => String(v ?? "").trim().toLowerCase().split("-")[0].trim();
 const nombreDeNivel = (v: string) => NIVELES.find(n => n.value === v)?.label ?? v;
 
 function horaLegible(hhmm: string) {
@@ -97,6 +109,7 @@ export function HorariosDeGrupo({
     // Alumnos activos cuyo horario ya no existe (se borró con gente dentro, o
     // pagaron sobre una sesión abierta antes de borrarlo).
     const [sinHorario, setSinHorario] = useState<AlumnoSinHorario[]>([]);
+    const [sinElegir, setSinElegir] = useState<AlumnoSinElegir[]>([]);
     // Alumnos que pasaron a OTRO inicio (desde su enlace o la reasignación). La
     // plataforma todavía no recibe ese cambio: hay que actualizarle la cohorte allí.
     const [cambiosDeInicio, setCambiosDeInicio] = useState<CambioDeInicio[]>([]);
@@ -120,6 +133,7 @@ export function HorariosDeGrupo({
             const data = await res.json();
             setHorarios(Array.isArray(data?.horarios) ? data.horarios : []);
             setSinHorario(Array.isArray(data?.sinHorarioVigente) ? data.sinHorarioVigente : []);
+            setSinElegir(Array.isArray(data?.sinHorarioElegido) ? data.sinHorarioElegido : []);
             setCambiosDeInicio(Array.isArray(data?.cambiosDeInicio) ? data.cambiosDeInicio : []);
             setSucio(false);
         } catch (e) {
@@ -209,10 +223,13 @@ export function HorariosDeGrupo({
         if (sucio) { setError("Guarda primero los cambios de horarios antes de mover alumnos."); return; }
         setError("");
         try {
-            const res = await fetch(`${base}/config/horarios-de-clase/alumno/${alumno.id}`, {
+            const dePlataforma = alumno.origen === "plataforma";
+            const res = await fetch(dePlataforma
+                ? `${base}/config/horarios-de-clase/alumno-plataforma`
+                : `${base}/config/horarios-de-clase/alumno/${alumno.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-                body: JSON.stringify({ horario_id: destino }),
+                body: JSON.stringify(dePlataforma ? { email: alumno.email, horario_id: destino } : { horario_id: destino }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.error || `Error (${res.status})`);
@@ -269,7 +286,7 @@ export function HorariosDeGrupo({
     return (
         <div>
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-[10px] font-black text-emerald-600">3</span>
+                <span className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-[10px] font-black text-emerald-600">2</span>
                 Horarios de grupo por nivel
             </h2>
 
@@ -435,9 +452,10 @@ export function HorariosDeGrupo({
                                                                     ) : (
                                                                         <ul className="space-y-1.5">
                                                                             {(h.alumnos ?? []).map(a => (
-                                                                                <li key={a.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                                                                <li key={a.id ?? a.email} className="flex flex-wrap items-center gap-2 text-xs">
                                                                                     <span className="font-medium text-gray-800">{a.full_name || "Sin nombre"}</span>
                                                                                     <span className="text-gray-400">{a.email}</span>
+{a.origen === "plataforma" && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">plataforma</span>}
                                                                                     <select
                                                                                         className="ml-auto p-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                                                         value=""
@@ -507,11 +525,12 @@ export function HorariosDeGrupo({
                     <ul className="space-y-1.5">
                         {sinHorario.map(a => {
                             const destinos = horarios.filter(x =>
-                                x.plan === a.plan && x.level === a.level && x.start_date === a.inscription_date);
+                                x.plan === (a.familia ?? a.plan) && grupoDeNivel(x.level) === grupoDeNivel(a.level) && x.start_date === a.inscription_date);
                             return (
-                                <li key={a.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                <li key={a.id ?? a.email} className="flex flex-wrap items-center gap-2 text-xs">
                                     <span className="font-medium text-gray-800">{a.full_name || "Sin nombre"}</span>
                                     <span className="text-gray-500">{a.email}</span>
+                                    {a.origen === "plataforma" && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">plataforma</span>}
                                     <span className="text-gray-500">
                                         · {a.plan ? nombrePlan(a.plan) : "—"} · {a.level ? nombreDeNivel(a.level) : "—"} · {a.inscription_date ? nombreFecha(a.inscription_date) : "sin fecha"}
                                     </span>
@@ -528,6 +547,49 @@ export function HorariosDeGrupo({
                                             <option key={d.id} value={d.id}>{horaLegible(d.hora_pt)}</option>
                                         ))}
                                         <option value="__ninguno">Quitar horario</option>
+                                    </select>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            )}
+            {sinElegir.length > 0 && (
+                <div className="mt-4 bg-orange-50 rounded-2xl border border-orange-200 p-5">
+                    <p className="text-sm font-semibold text-orange-900">
+                        Compraron sin horario de grupo ({sinElegir.length})
+                    </p>
+                    <p className="text-xs text-orange-800 mt-1 mb-3">
+                        Su fecha y nivel no tenían horarios publicados cuando pagaron. Publica uno para su fecha y nivel y asígnaselo,
+                        o escríbeles: desde su enlace de <strong>Cambiar mi horario</strong> también pueden elegirlo ellos.
+                    </p>
+                    <ul className="space-y-1.5">
+                        {sinElegir.map(a => {
+                            const destinos = horarios.filter(x =>
+                                x.plan === (a.familia ?? a.plan) && grupoDeNivel(x.level) === grupoDeNivel(a.level) && x.start_date === a.inscription_date);
+                            return (
+                                <li key={a.id ?? a.email} className="flex flex-wrap items-center gap-2 text-xs">
+                                    <span className="font-medium text-gray-800">{a.full_name || "Sin nombre"}</span>
+                                    <span className="text-gray-500">{a.email}</span>
+                                    {a.origen === "plataforma" && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">plataforma</span>}
+                                    <span className="text-gray-500">
+                                        · {a.plan ? nombrePlan(a.plan) : "—"} · {a.level ? nombreDeNivel(a.level) : "—"} · {a.inscription_date ? nombreFecha(a.inscription_date) : "sin fecha"}
+                                    </span>
+                                    <select
+                                        className="ml-auto p-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                        value=""
+                                        disabled={!destinos.length}
+                                        onChange={e => { const v = e.target.value; if (v) mover(a, v); }}
+                                    >
+                                        <option value="">{destinos.length ? "Asignar a…" : "Sin horarios de su fecha y nivel"}</option>
+                                        {destinos.map(d => {
+                                            const llenoD = d.maximo !== null && (d.inscritos ?? 0) >= d.maximo;
+                                            return (
+                                                <option key={d.id} value={d.id} disabled={llenoD}>
+                                                    {horaLegible(d.hora_pt)}{llenoD ? " · lleno" : !d.enabled ? " · inactivo" : ""}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </li>
                             );

@@ -78,7 +78,10 @@ function estado(h: Horario) {
     return {
         texto: "Por confirmar",
         clase: "bg-amber-100 text-amber-800",
-        detalle: `Se abre con ${h.minimo} alumnos · faltan ${h.faltan}`,
+        // La MISMA frase que el formulario y /mi-horario (2026-10-17). Con el
+        // mínimo al lado se podía restar y saber cuántos hay inscritos, que es
+        // justo lo que la decisión del 2026-10-16 no quiere enseñar.
+        detalle: `Necesita ${h.faltan} ${h.faltan === 1 ? "alumno" : "alumnos"} más para abrir`,
     };
 }
 
@@ -151,7 +154,9 @@ export default function HorariosPublicados({
 
     const nombrePlan = (k: string) => catalogo?.find(p => p.key === k)?.label ?? k;
     const diasDe = (k: string) => listaDeDias(catalogo?.find(p => p.key === k)?.classDays ?? []);
-    const irA = (k: string) => (enlaceInscripcion ? enlaceInscripcion(k) : `/paso-uno`);
+    // Sin enlace propio (la página /horarios), directo al formulario con ese plan:
+    // mandar a /paso-uno le hacía repetir tres pasos y perder el plan que miraba.
+    const irA = (k: string) => (enlaceInscripcion ? enlaceInscripcion(k) : `/paso-cuatro?${new URLSearchParams({ plan: k })}`);
 
     if (modo === "plegable" && !abierto) {
         return (
