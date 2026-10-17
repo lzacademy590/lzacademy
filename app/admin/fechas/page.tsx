@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
-import { todayPT, nowPTInput } from "../_utils/ptTime";
+import { todayPT } from "../_utils/ptTime";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
@@ -17,13 +17,6 @@ interface StartDate {
     special?: boolean;
     excludedPlans?: string[];        // planes excluidos del formulario público normal
     excludedPlansSpecial?: string[]; // planes excluidos de /pago-estudiantes
-}
-
-interface PremiumSlot {
-    id: string;
-    datetime_pt: string;
-    start_date: string;
-    enabled: boolean;
 }
 
 const MONTH_NAMES_ES = [
@@ -39,19 +32,6 @@ function buildLabel(value: string) {
 function formatMMDDYYYY(value: string) {
     const [year, month, day] = value.split("-");
     return `${month}/${day}/${year}`;
-}
-
-function buildSlotLabel(datetimePt: string): string {
-    const [datePart, timePart] = datetimePt.split("T");
-    const [year, month, day] = datePart.split("-").map(Number);
-    const [h, m] = timePart.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    const timeStr = `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
-    const d = new Date(Date.UTC(year, month - 1, day));
-    const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-    const monthShort = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-    return `${dayNames[d.getUTCDay()]} ${day} ${monthShort[month - 1]} ${year} · ${timeStr} PT`;
 }
 
 export default function FechasPage() {
@@ -87,15 +67,6 @@ export default function FechasPage() {
     const [error, setError]     = useState("");
     const [saved, setSaved]     = useState(false);
 
-    // Premium slots
-    const [slots, setSlots]             = useState<PremiumSlot[]>([]);
-    const [loadingSlots, setLoadingSlots] = useState(true);
-    const [savingSlots, setSavingSlots] = useState(false);
-    const [newSlotDt, setNewSlotDt]     = useState("");
-    const [newSlotStartDate, setNewSlotStartDate] = useState("");
-    const [slotsError, setSlotsError]   = useState("");
-    const [slotsSaved, setSlotsSaved]   = useState(false);
-
     const load = useCallback(async () => {
         setLoadError(null);
         try {
@@ -105,20 +76,14 @@ export default function FechasPage() {
             const token = session.access_token;
             const base  = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-            const [datesRes, slotsRes] = await Promise.all([
-                fetch(`${base}/config/start-dates/all`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${base}/config/premium-slots/all`, { headers: { Authorization: `Bearer ${token}` } }),
-            ]);
+            const datesRes = await fetch(`${base}/config/start-dates/all`, { headers: { Authorization: `Bearer ${token}` } });
 
             if (!datesRes.ok) throw new Error(`Error fechas (${datesRes.status})`);
-            if (!slotsRes.ok) throw new Error(`Error horarios (${slotsRes.status})`);
             setDates(await datesRes.json());
-            setSlots(await slotsRes.json());
         } catch (e) {
             setLoadError(e instanceof Error ? e.message : "Error de red");
         } finally {
             setLoading(false);
-            setLoadingSlots(false);
         }
     }, [router]);
 
@@ -206,74 +171,9 @@ export default function FechasPage() {
         if (await saveDates(updated)) setNewDate("");
     }
 
-    // ─── Premium slots ─────────────────────────────────────────────
-    // Mismo hueco que `saveDates`, y por el mismo motivo: ver su comentario.
-    async function saveSlots(updatedSlots: PremiumSlot[]): Promise<boolean> {
-        setSavingSlots(true); setSlotsSaved(false); setSlotsError("");
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push("/admin/login"); return false; }
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/premium-slots`, {
-                method: "PUT",
-                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ slots: updatedSlots }),
-            });
-            if (res.ok) {
-                setSlots(updatedSlots); setSlotsSaved(true); setTimeout(() => setSlotsSaved(false), 2500);
-                return true;
-            }
-            setSlotsError("Error guardando los horarios.");
-            return false;
-        } catch {
-            setSlotsError("No se pudo conectar con el servidor. Los horarios NO se guardaron.");
-            return false;
-        } finally {
-            setSavingSlots(false);
-        }
-    }
-
-    function handleToggleSlot(index: number) {
-        saveSlots(slots.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s));
-    }
-    // Mismo motivo que `handleDelete`: escribe en producción y no hay deshacer.
-    function handleDeleteSlot(index: number) {
-        const h = slots[index];
-        const ok = window.confirm(
-            `¿Quitar el horario ${h?.datetime_pt ?? ""} del grupo que empieza el ${h?.start_date ?? ""}?\n\n` +
-            "Si esa fecha se queda sin ningún horario, a quien compre Premium se le dirá " +
-            "que el equipo le contactará para coordinarlo."
-        );
-        if (!ok) return;
-        saveSlots(slots.filter((_, i) => i !== index));
-    }
-    async function handleAddSlot() {
-        if (!newSlotDt || !newSlotStartDate) return;
-        const targetDate = dates.find(d => d.value === newSlotStartDate);
-        if (!targetDate || !targetDate.enabled || targetDate.value < today) {
-            setSlotsError("Esa fecha de inicio está inactiva o ya pasó."); return;
-        }
-        if (slots.some(s => s.datetime_pt === newSlotDt && s.start_date === newSlotStartDate)) {
-            setSlotsError("Ese horario ya existe para esa fecha de inicio."); return;
-        }
-        const updated = [
-            ...slots,
-            { id: crypto.randomUUID(), datetime_pt: newSlotDt, start_date: newSlotStartDate, enabled: true },
-        ].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.datetime_pt.localeCompare(b.datetime_pt));
-        setSlotsError("");
-        /*
-          ⚠️ Los campos se vacían SOLO si se guardó, igual que en `handleAdd`. Esta
-          función se quedó atrás en el arreglo del 2026-09-06: vaciaba antes y sin
-          `await`, así que un fallo de red dejaba al admin leyendo "los horarios NO
-          se guardaron" sobre dos campos ya vacíos. Son las dos mitades del mismo
-          fallo y ahora se comportan igual.
-        */
-        if (await saveSlots(updated)) { setNewSlotDt(""); setNewSlotStartDate(""); }
-    }
-
     // Fecha/hora actual en horario de California (PT), no en UTC, para que los
     // límites de los inputs y el cálculo de "pasada" coincidan con la zona del negocio.
     const today = todayPT();
-    const nowDT = nowPTInput();
 
     // ─── Render helpers (reutilizan saving / dates / saveDates por closure) ───
 
@@ -370,7 +270,7 @@ export default function FechasPage() {
             <div className="mb-8">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Fechas</h1>
                 <p className="text-sm text-gray-400 mt-1">
-                    Administra las fechas de inicio y los horarios disponibles para clases Premium.
+                    Administra las fechas de inicio y los horarios de grupo que el alumno elige al comprar.
                 </p>
             </div>
 
@@ -527,135 +427,17 @@ export default function FechasPage() {
                 </p>
             </div>
 
-            {/* ══ SECCIÓN 2: Horarios Premium ══ */}
-            <div>
-                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-purple-100 flex items-center justify-center text-[10px] font-black text-purple-600">2</span>
-                    Horarios Premium
-                </h2>
-
-                {/* Agregar horario */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Agregar nuevo horario</p>
-                    <p className="text-xs text-gray-400 mb-3">
-                        Asocia un horario (en <strong>hora PT</strong>) a una fecha de inicio específica. El alumno verá solo los horarios de su fecha.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div>
-                            <label className="text-xs text-gray-400 font-medium block mb-1">Fecha de inicio</label>
-                            <select
-                                value={newSlotStartDate}
-                                onChange={(e) => { setNewSlotStartDate(e.target.value); setSlotsError(""); }}
-                                className="w-full p-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50 appearance-none cursor-pointer"
-                            >
-                                <option value="">Selecciona fecha de inicio</option>
-                                {dates.filter(d => d.enabled && d.value >= today).map(d => (
-                                    <option key={d.value} value={d.value}>{d.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 font-medium block mb-1">Hora de la clase (PT)</label>
-                            <input
-                                type="datetime-local"
-                                min={nowDT}
-                                value={newSlotDt}
-                                onChange={(e) => { setNewSlotDt(e.target.value); setSlotsError(""); }}
-                                className="w-full p-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex items-end justify-between gap-3">
-                        <div className="text-xs text-gray-400">
-                            {newSlotDt && newSlotStartDate
-                                ? <>Se mostrará a alumnos con inicio <span className="font-medium text-gray-600">{dates.find(d => d.value === newSlotStartDate)?.label ?? newSlotStartDate}</span> como: <span className="font-medium text-gray-600">{buildSlotLabel(newSlotDt)}</span></>
-                                : <span className="text-gray-300">Selecciona fecha de inicio y hora para ver la vista previa</span>
-                            }
-                        </div>
-                        <button
-                            onClick={handleAddSlot}
-                            disabled={!newSlotDt || !newSlotStartDate || savingSlots}
-                            className="shrink-0 px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            Agregar
-                        </button>
-                    </div>
-                </div>
-
-                {slotsError && (
-                    <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">{slotsError}</div>
-                )}
-                {slotsSaved && (
-                    <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 flex items-center gap-2">
-                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Horarios guardados correctamente.
-                    </div>
-                )}
-
-                {/* Lista de horarios */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-700">Horarios configurados</p>
-                        <span className="text-xs text-gray-400">{slots.length} horarios</span>
-                    </div>
-                    {loadingSlots ? (
-                        <div className="px-5 py-8 text-center text-gray-400 text-sm">Cargando…</div>
-                    ) : slots.length === 0 ? (
-                        <div className="px-5 py-10 text-center text-gray-300 text-sm">No hay horarios configurados. Agrega uno arriba.</div>
-                    ) : (
-                        <ul className="divide-y divide-gray-50">
-                            {slots.map((slot, i) => {
-                                const startDateLabel = dates.find(d => d.value === slot.start_date)?.label ?? slot.start_date;
-                                return (
-                                <li key={slot.id} className="flex items-center justify-between px-5 py-4 gap-4">
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-semibold text-purple-500 mb-0.5">Inicio: {startDateLabel}</p>
-                                        <p className="text-sm font-semibold text-gray-800">{buildSlotLabel(slot.datetime_pt)}</p>
-                                        <p className="text-xs text-gray-400 font-mono mt-0.5">{slot.datetime_pt}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <button
-                                            onClick={() => handleToggleSlot(i)}
-                                            disabled={savingSlots}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
-                                                slot.enabled ? "bg-purple-500" : "bg-gray-200"
-                                            }`}
-                                        >
-                                            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                                                slot.enabled ? "translate-x-6" : "translate-x-1"
-                                            }`} />
-                                        </button>
-                                        <span className={`text-xs font-medium w-16 ${slot.enabled ? "text-purple-600" : "text-gray-400"}`}>
-                                            {slot.enabled ? "Activo" : "Inactivo"}
-                                        </span>
-                                        <button
-                                            onClick={() => handleDeleteSlot(i)}
-                                            disabled={savingSlots}
-                                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </li>
-                                );
-                            })}
-                        </ul>
-                    )}
-                </div>
-                <p className="text-xs text-gray-400 mt-3 px-1">
-                    Los horarios <strong>activos</strong> se muestran al alumno en la página de confirmación de pago Premium. Ingresa siempre en hora PT (Pacífico).
-                </p>
-            </div>
-
-            {/* ══ SECCIÓN 3: Horarios de grupo por cohorte y nivel ══ */}
+            {/* ══ SECCIÓN 2: Horarios de grupo por cohorte y nivel ══ */}
             <HorariosDeGrupo
                 fechas={dates.filter(d => d.value >= today)}
                 planes={planesDeCheckout(catalogoDeFechas)
                     .filter(p => cohortPlanKeys.includes(p.key))
+                    // Solo las BASES: un horario vale para toda su familia
+                    // (2026-10-17), así que publicarlo "para una rama" no existe.
+                    .filter(p => {
+                        const fam = catalogoDeFechas?.find(c => c.key === p.key)?.family;
+                        return !fam || fam === p.key;
+                    })
                     .map(p => ({ key: p.key, nombre: p.nombreEnCheckout }))}
             />
         </div>
