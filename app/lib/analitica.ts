@@ -77,6 +77,15 @@ export function medirListaDePlanes(planes: PlanMedido[]) {
   });
 }
 
+/**
+ * /paso-tres recomendó un plan según el nivel y las dificultades (evento propio,
+ * no de los recomendados de GA4). Cruzado con `select_item` dice si la
+ * recomendación convence.
+ */
+export function medirRecomendacion(clave: string) {
+  gtag("event", "plan_recomendado", { plan: clave });
+}
+
 /** Clic en "Seleccionar" de una card. */
 export function medirPlanElegido(plan: PlanMedido) {
   gtag("event", "select_item", {

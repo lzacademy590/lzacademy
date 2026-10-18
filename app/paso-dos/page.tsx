@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 
 function IconMic() {
   return (
@@ -109,9 +110,7 @@ function PasosDosContent() {
 
             {/* Título */}
             <div className="text-center mb-4 lg:mb-8">
-              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#C0353E" }}>
-                Paso 2 de 4
-              </p>
+              <ProgresoDelEmbudo paso={2} />
               <h1 className="text-2xl lg:text-4xl xl:text-5xl font-extrabold text-zinc-800 tracking-tight">
                 ¿Qué se te{" "}
                 <span style={{ color: "#C0353E" }}>dificulta</span>{" "}

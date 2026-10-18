@@ -3,7 +3,40 @@
 import { useState } from "react";
 import { Container } from "../components/Container";
 
+const WHATSAPP_URL = "https://chat.whatsapp.com/HhAvLoPoLwf1JsX0aWtnX1";
+
 const preguntasFrecuentes: { pregunta: string; respuesta: React.ReactNode }[] = [
+  /*
+    Las tres primeras se añadieron el 2026-10-17: son las dudas que frenan el
+    pago (¿y si no es para mí?, ¿cuándo empiezo?, ¿y si mi grupo no abre?), y van
+    arriba porque esta lista se lee justo debajo de los precios.
+    ⚠️ Lo que dicen es la regla de /reembolsos §1 y la de /mi-horario: si
+    cambian, cambian aquí.
+  */
+  {
+    pregunta: "¿Y si me inscribo y no es para mí?",
+    respuesta: (
+      <>
+        Si es tu primera inscripción tienes <strong>3 días de garantía</strong>: te devolvemos el pago
+        completo si cancelas antes de empezar o en los primeros 3 días desde el inicio de tu grupo (o
+        desde el pago, en los planes que empiezan el mismo día). Los detalles están en la{" "}
+        <a href="/reembolsos" className="font-semibold text-falu-red-800 hover:text-falu-red-900 underline">
+          política de reembolso
+        </a>
+        .
+      </>
+    ),
+  },
+  {
+    pregunta: "¿Cuándo empiezo?",
+    respuesta:
+      "Depende del plan. Los planes con clases en vivo empiezan con tu grupo, en la fecha de inicio que elijas al inscribirte; ese día se abre tu curso. Essential empieza el mismo día que pagas.",
+  },
+  {
+    pregunta: "¿Qué pasa si mi horario de grupo no llega al mínimo de alumnos?",
+    respuesta:
+      "No pierdes tu pago. Te avisamos por correo y eliges otro horario de tu nivel o pasar al siguiente inicio, sin pagar de nuevo, desde el enlace que te enviamos. Si no eliges, el día antes del inicio te pasamos al horario con lugar más cercano de tu nivel o, si no hay, al siguiente inicio.",
+  },
   {
     pregunta: "¿Puedo cancelar en cualquier momento?",
     respuesta:
@@ -109,8 +142,9 @@ export default function PreguntasFrecuentes() {
           <p className="mt-3 text-sm text-zinc-500 max-w-md mx-auto">
             Todo lo que necesitas saber antes de empezar. ¿No encuentras tu respuesta?
             {" "}
-            <a href="/#faq" className="font-semibold text-falu-red-800 hover:text-falu-red-900">
-              Escríbenos →
+            {/* Antes iba a "/#faq", o sea a la portada, que no tiene FAQ. */}
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-falu-red-800 hover:text-falu-red-900">
+              Escríbenos por WhatsApp →
             </a>
           </p>
         </div>

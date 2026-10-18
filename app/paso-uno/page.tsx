@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 
 const levels = [
   { code: "A1",   name: "Principiante",                    desc: "Solo entiendo y uso frases muy básicas" },
@@ -65,9 +66,7 @@ export default function PasoUnoPage() {
           <div className="flex flex-col items-center justify-center py-4 lg:py-0 order-1 lg:order-2">
 
             <div className="text-center mb-4 lg:mb-8">
-              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#C0353E" }}>
-                Paso 1 de 4
-              </p>
+              <ProgresoDelEmbudo paso={1} />
               <h1 className="text-2xl lg:text-4xl xl:text-5xl font-extrabold text-zinc-800 tracking-tight">
                 ¿Cuál es tu{" "}
                 <span style={{ color: "#C0353E" }}>nivel de Inglés</span>?

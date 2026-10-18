@@ -8,6 +8,7 @@ import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
+import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
 import { fechaLarga, infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
 
@@ -439,9 +440,7 @@ const PaymentForm = ({
                 {/* Encabezado */}
                 <div className="text-center mb-6">
                     {embedded && (
-                        <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#C0353E" }}>
-                            Paso 4 de 4
-                        </p>
+                        <ProgresoDelEmbudo paso={4} />
                     )}
                     <h2 className="text-2xl font-extrabold text-zinc-900 sm:text-3xl">
                         {embedded ? "¡Ya casi terminas!" : "Comenzá tu camino en inglés"}

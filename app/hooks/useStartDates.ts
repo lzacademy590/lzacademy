@@ -12,15 +12,45 @@ export interface StartDate {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
+/*
+  UNA lectura por página, no una por componente (2026-10-17). Desde que las cartas
+  de /paso-tres y las landings dicen "Próximo grupo: …", este hook se monta varias
+  veces a la vez (dos rejillas × cuatro cartas). Con un fetch por montaje eran
+  ocho peticiones iguales contra el limitador de 100/15 min por IP. Misma receta
+  que `usePlanesDelCatalogo`: single-flight y un TTL corto.
+
+  Un fallo NO se guarda: el siguiente montaje vuelve a intentarlo.
+*/
+const TTL_MS = 60_000;
+let enCache: { datos: StartDate[]; en: number } | null = null;
+let enVuelo: Promise<StartDate[]> | null = null;
+
+function leerFechas(): Promise<StartDate[]> {
+  if (enCache && Date.now() - enCache.en < TTL_MS) return Promise.resolve(enCache.datos);
+  if (enVuelo) return enVuelo;
+  enVuelo = fetch(`${BACKEND_URL}/config/start-dates`)
+    .then((r) => r.json())
+    .then((data) => {
+      const datos = Array.isArray(data) ? (data as StartDate[]) : [];
+      enCache = { datos, en: Date.now() };
+      return datos;
+    })
+    .finally(() => {
+      enVuelo = null;
+    });
+  return enVuelo;
+}
+
 export function useStartDates() {
-  const [dates, setDates] = useState<StartDate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dates, setDates] = useState<StartDate[]>(() => enCache?.datos ?? []);
+  const [loading, setLoading] = useState(() => !enCache);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/config/start-dates`)
-      .then((r) => r.json())
-      .then((data) => { setDates(data); setLoading(false); })
-      .catch(() => setLoading(false));
+    let vivo = true;
+    leerFechas()
+      .then((datos) => { if (vivo) { setDates(datos); setLoading(false); } })
+      .catch(() => { if (vivo) setLoading(false); });
+    return () => { vivo = false; };
   }, []);
 
   // "Hoy" en la zona horaria local del usuario (YYYY-MM-DD). Usamos la zona del
