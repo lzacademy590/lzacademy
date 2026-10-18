@@ -4,8 +4,9 @@
 // (una muestra de hasta cinco) y lleva a la pantalla donde se resuelve. Lo que está
 // al día se resume en una línea al final, para que lo urgente no se pierda entre ceros.
 
+import { useState } from "react";
 import Link from "next/link";
-import { Boton, BotonEnlace, PlanBadge, Spinner, nivelLabel } from "../_ui";
+import { Boton, BotonEnlace, EscribirCorreo, PLANTILLAS, PlanBadge, Spinner, nivelLabel, type GrupoDeAlumnos } from "../_ui";
 import { usePendientes, type Pendientes, type AlumnoPendiente, type GrupoPendiente } from "../_ui/pendientes";
 import { fmtDatePT, fmtDia } from "../_utils/format";
 
@@ -21,6 +22,8 @@ type Definicion = {
   accion: { label: string; href: string };
   items: (p: Pendientes) => Item[];
   extra?: (p: Pendientes) => string | null;
+  /** Si se puede escribir a todo el grupo desde la tarjeta. */
+  correo?: GrupoDeAlumnos;
 };
 
 // "19:00" -> "7:00 PM PT", como en la pantalla de Horarios.
@@ -64,6 +67,7 @@ const DEFINICIONES: Definicion[] = [
     explicacion: "Stripe no pudo cobrar la renovación. Escríbeles para que actualicen su tarjeta desde el portal.",
     tono: "rojo",
     accion: { label: "Ver no renovados", href: "/admin/no-renovados?tipo=pago-fallido" },
+    correo: "pagosFallidos",
     items: (p) => lista(p.pagosFallidos).map(alumnoItem(() => null)),
   },
   {
@@ -88,6 +92,7 @@ const DEFINICIONES: Definicion[] = [
     explicacion: "Pagaron un plan con grupo pero no tienen horario asignado.",
     tono: "ambar",
     accion: { label: "Asignar horario", href: "/admin/horarios" },
+    correo: "sinHorario",
     items: (p) =>
       lista(p.sinHorario).map(
         alumnoItem((a) => (a.inscription_date ? <span>inicio {fmtDia(a.inscription_date)}</span> : null)),
@@ -99,6 +104,7 @@ const DEFINICIONES: Definicion[] = [
     explicacion: "Alumnos activos que todavía no recibieron su correo de accesos.",
     tono: "ambar",
     accion: { label: "Ir a accesos", href: "/admin/accesos?estado=pendientes" },
+    correo: "accesosPendientes",
     items: (p) => lista(p.accesosPendientes).map(alumnoItem((a) => <span>{nivelLabel(a.level)}</span>)),
   },
   {
@@ -107,6 +113,7 @@ const DEFINICIONES: Definicion[] = [
     explicacion: "Pidieron cancelar y pierden el acceso en los próximos 7 días. Es el último momento para escribirles.",
     tono: "ambar",
     accion: { label: "Ver no renovados", href: "/admin/no-renovados?tipo=cancela-pronto" },
+    correo: "cancelanPronto",
     items: (p) =>
       lista(p.cancelanPronto).map(alumnoItem((a) => <span>vence el {fmtDatePT(a.current_period_end)}</span>)),
   },
@@ -142,6 +149,12 @@ const DEFINICIONES: Definicion[] = [
   },
 ];
 
+const ICONO_SOBRE = (
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+);
+
 const TONOS: Record<Tono, { borde: string; numero: string; punto: string }> = {
   rojo: { borde: "border-l-red-500", numero: "text-red-600", punto: "bg-red-500" },
   ambar: { borde: "border-l-amber-400", numero: "text-amber-600", punto: "bg-amber-400" },
@@ -159,10 +172,11 @@ function hace(iso: string): string {
 function TarjetaPendiente({ def, datos }: { def: Definicion; datos: Pendientes }) {
   const bloque = datos[def.clave];
   const t = TONOS[def.tono];
+  const [escribiendo, setEscribiendo] = useState(false);
 
   if (!bloque.ok) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-gray-300 p-5">
+      <div className="bg-white rounded-2xl border border-gray-100 border-l-4 border-l-gray-300 p-5">
         <h3 className="text-sm font-semibold text-gray-700">{def.titulo}</h3>
         <p className="text-xs text-gray-500 mt-1">No se pudo comprobar ahora. Revísalo en su pantalla.</p>
         <div className="mt-4"><BotonEnlace href={def.accion.href}>{def.accion.label} →</BotonEnlace></div>
@@ -175,7 +189,7 @@ function TarjetaPendiente({ def, datos }: { def: Definicion; datos: Pendientes }
   const restantes = bloque.total - items.length;
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${t.borde} p-5 flex flex-col`}>
+    <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${t.borde} p-5 flex flex-col`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-800">{def.titulo}</h3>
@@ -206,14 +220,28 @@ function TarjetaPendiente({ def, datos }: { def: Definicion; datos: Pendientes }
         })}
       </ul>
 
-      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between gap-3">
+      <div className="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-gray-400">
           {restantes > 0 ? `y ${restantes} más` : ""}
           {restantes > 0 && extra ? " · " : ""}
           {extra}
         </span>
-        <BotonEnlace href={def.accion.href}>{def.accion.label} →</BotonEnlace>
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
+          {def.correo && (
+            <Boton tamano="sm" onClick={() => setEscribiendo(true)} icono={ICONO_SOBRE}>
+              {bloque.total === 1 ? "Escribirle" : `Escribirles (${bloque.total})`}
+            </Boton>
+          )}
+          <BotonEnlace href={def.accion.href}>{def.accion.label} →</BotonEnlace>
+        </div>
       </div>
+      {escribiendo && def.correo && (
+        <EscribirCorreo
+          destino={{ tipo: "grupo", grupo: def.correo, etiqueta: def.titulo, total: bloque.total }}
+          plantilla={PLANTILLAS[def.correo]}
+          onCerrar={() => setEscribiendo(false)}
+        />
+      )}
     </div>
   );
 }

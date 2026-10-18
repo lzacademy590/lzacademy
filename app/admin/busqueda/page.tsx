@@ -23,6 +23,8 @@ import {
     useToast,
     useConfirmar,
     type Tono,
+    EscribirCorreo,
+    PLANTILLAS,
 } from "../_ui";
 import { fmtDatePT, fmtDateTimePT, fmtDia, fmtMoney } from "../_utils/format";
 
@@ -128,6 +130,7 @@ export default function BusquedaPage() {
     const [statusSaving, setStatusSaving] = useState(false);
     const [subBusy, setSubBusy] = useState<null | "cancel" | "refund" | "portal">(null);
     const [portalUrl, setPortalUrl] = useState<string | null>(null);
+    const [escribiendo, setEscribiendo] = useState(false);
     const [portalCopied, setPortalCopied] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const inputRef    = useRef<HTMLInputElement>(null);
@@ -425,7 +428,7 @@ export default function BusquedaPage() {
                     placeholder="Nombre o correo electrónico…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className="w-full pl-12 pr-12 py-3.5 text-sm bg-white border border-gray-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-falu-red-200 focus:border-falu-red-300 transition-all placeholder:text-gray-400"
+                    className="w-full pl-12 pr-12 py-3.5 text-sm bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-falu-red-200 focus:border-falu-red-300 transition-all placeholder:text-gray-400"
                 />
                 {query && (
                     <button
@@ -538,6 +541,10 @@ export default function BusquedaPage() {
                                                 </div>
                                                 {/* Edit / Save */}
                                                 {!editing ? (
+                                                    <div className="flex flex-wrap justify-end gap-2">
+                                                    <Boton variante="secundario" tamano="sm" onClick={() => setEscribiendo(true)}>
+                                                        Escribir correo
+                                                    </Boton>
                                                     <Boton
                                                         variante="secundario"
                                                         tamano="sm"
@@ -546,6 +553,7 @@ export default function BusquedaPage() {
                                                     >
                                                         Editar campos
                                                     </Boton>
+                                                    </div>
                                                 ) : (
                                                     <div className="flex gap-2">
                                                         <Boton variante="secundario" tamano="sm" onClick={() => setEditing(false)} disabled={saving}>
@@ -832,6 +840,13 @@ export default function BusquedaPage() {
                     </div>
                     <p className="text-sm text-gray-400">Escribe el nombre o correo de un usuario</p>
                 </div>
+            )}
+            {escribiendo && selected && (
+                <EscribirCorreo
+                    destino={{ tipo: "alumnos", alumnos: [{ email: selected.email, nombre: selected.full_name }] }}
+                    plantilla={PLANTILLAS.general}
+                    onCerrar={() => setEscribiendo(false)}
+                />
             )}
         </Pagina>
     );

@@ -440,7 +440,7 @@ export default function Marketing() {
             </p>
 
             {/* ── Table ── */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-100 text-sm">
                         <thead className="bg-gray-50">

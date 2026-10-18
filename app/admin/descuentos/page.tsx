@@ -115,11 +115,20 @@ export default function DescuentosPage() {
       puede— el texto queda desfasado sin que nada falle. Es la misma pantalla que
       ya deriva su desplegable del catálogo. (Revisión del PR #12.)
     */
-    const { unicos, recurrentes } = useMemo(() => {
+    const { unicos, recurrentes, nRecurrentes } = useMemo(() => {
         const lista = planesDeCheckout(catalogoDescuentos);
+        // Un plan abierto en la plataforma no tiene etiqueta local: planLabel
+        // devolvía su clave interna ("PERSONALIZED_PLUS") en mitad del aviso.
+        const nombre = (p: (typeof lista)[number]) => {
+            const local = planLabel(p.key as DiscountPlan);
+            return local === p.key ? p.label : local;
+        };
+        // "a, b y c" en vez de "a y b y c".
+        const enumerar = (xs: string[]) => new Intl.ListFormat("es", { type: "conjunction" }).format(xs);
         return {
-            unicos: lista.filter((p) => !p.recurring).map((p) => planLabel(p.key as DiscountPlan)),
-            recurrentes: lista.filter((p) => p.recurring).map((p) => planLabel(p.key as DiscountPlan)),
+            unicos: enumerar(lista.filter((p) => !p.recurring).map(nombre)),
+            recurrentes: enumerar(lista.filter((p) => p.recurring).map(nombre)),
+            nRecurrentes: lista.filter((p) => p.recurring).length,
         };
     }, [catalogoDescuentos]);
     const [rows, setRows] = useState<Row[]>([]);
@@ -257,11 +266,11 @@ export default function DescuentosPage() {
             <Aviso tono="azul">
                 <p>
                     El código solo se aplica a los planes de <strong>pago único</strong>
-                    {unicos.length > 0 && <>: hoy, <strong>{unicos.join(" y ")}</strong></>}.
+                    {unicos.length > 0 && <>: hoy, <strong>{unicos}</strong></>}.
                     {recurrentes.length > 0 && (
                         <>
                             {" "}
-                            <strong>{recurrentes.join(" y ")}</strong> se {recurrentes.length === 1 ? "renueva" : "renuevan"} y aún no {recurrentes.length === 1 ? "acepta" : "aceptan"} códigos — si eliges <strong>Todos los planes</strong>, el descuento se ignora en {recurrentes.length === 1 ? "ese plan" : "esos"}.
+                            <strong>{recurrentes}</strong> se {nRecurrentes === 1 ? "renueva" : "renuevan"} y aún no {nRecurrentes === 1 ? "acepta" : "aceptan"} códigos — si eliges <strong>Todos los planes</strong>, el descuento se ignora en {nRecurrentes === 1 ? "ese plan" : "esos"}.
                         </>
                     )}
                 </p>
@@ -288,7 +297,7 @@ export default function DescuentosPage() {
                         // ── Tarjeta en modo edición / borrador ──────────────────────
                         if (r._editing) {
                             return (
-                                <div key={r._id} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${r._isNew ? "border-2 border-dashed border-falu-red-300" : "border border-falu-red-200 ring-1 ring-falu-red-100"}`}>
+                                <div key={r._id} className={`bg-white rounded-2xl overflow-hidden ${r._isNew ? "border-2 border-dashed border-falu-red-300" : "border border-falu-red-200 ring-1 ring-falu-red-100"}`}>
                                     {/* Cabecera de edición */}
                                     <div className="flex items-center justify-between px-4 md:px-5 py-3 bg-falu-red-50/50 border-b border-falu-red-100">
                                         <div className="flex items-center gap-2">
@@ -395,7 +404,7 @@ export default function DescuentosPage() {
 
                         // ── Tarjeta en modo lectura (código guardado) ────────────────
                         return (
-                            <div key={r._id} className={`bg-white rounded-2xl border shadow-sm p-4 md:p-5 transition ${dirty ? "border-amber-200 ring-1 ring-amber-100" : "border-gray-100"}`}>
+                            <div key={r._id} className={`bg-white rounded-2xl border p-4 md:p-5 transition ${dirty ? "border-amber-200 ring-1 ring-amber-100" : "border-gray-100"}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0 flex-1">
                                         {/* Código + estado */}

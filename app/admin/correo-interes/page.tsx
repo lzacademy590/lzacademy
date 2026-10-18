@@ -659,7 +659,7 @@ export default function CorreosDelSitioPage() {
                 {/* El ASUNTO va FUERA de la hoja: no es parte del correo, es lo
                     que se lee en la bandeja antes de abrirlo. */}
                 {asunto && (
-                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-5 py-3 mb-3">
+                    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-3 mb-3">
                         <div className="flex items-baseline gap-3">
                             <span className="shrink-0 text-xs font-semibold text-gray-500 w-14">Asunto</span>
                             <div className="min-w-0 flex-1">
@@ -678,7 +678,7 @@ export default function CorreosDelSitioPage() {
                 {/* La hoja. Reproduce el envoltorio del correo para que lo que se
                     edita se lea en su sitio: la barra de marca y el pie son del
                     diseño y NO se tocan desde aquí. */}
-                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
                     <div className="h-1.5 bg-yellow-orange-500" />
                     <div className="px-5 pt-5">
                         <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold tracking-wide text-gray-600">
