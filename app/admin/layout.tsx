@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
 import { ProveedorDeToast } from "./_ui/toast";
 import { ProveedorDeConfirmacion } from "./_ui/confirmar";
 import { ProveedorDePendientes, usePendientes, contadoresDelMenu, totalDe } from "./_ui/pendientes";
+import { AdaptarTablas } from "./_ui/tablas";
+import { useAlmacenLocal } from "./_ui";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode };
 type NavGroup = { title: string; items: NavItem[] };
@@ -132,6 +134,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+const CLAVE_MENU = "lz-admin-menu";
 const IDLE_MS = 20 * 60 * 1000;
 const WARN_MS = 1 * 60 * 1000;
 
@@ -161,6 +164,15 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [idleWarning, setIdleWarning] = useState(false);
+  // Grupos del menú abiertos/cerrados a mano. Lo que no está aquí sigue la regla
+  // por defecto: abierto el primero y el que contiene la pantalla actual.
+  const [menuGuardado, guardarMenu] = useAlmacenLocal(CLAVE_MENU);
+  const gruposAbiertos = useMemo<Record<string, boolean>>(() => {
+    try {
+      const v = JSON.parse(menuGuardado ?? "{}");
+      return v && typeof v === "object" ? v : {};
+    } catch { return {}; } // dato roto: la regla por defecto
+  }, [menuGuardado]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -237,6 +249,41 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const grupoAbierto = (g: NavGroup) =>
+    gruposAbiertos[g.title] ?? (g.title === navGroups[0].title || g.items.some((i) => i.href === pathname));
+
+  const alternarGrupo = (g: NavGroup) => {
+    guardarMenu(JSON.stringify({ ...gruposAbiertos, [g.title]: !grupoAbierto(g) }));
+  };
+
+  const renderGrupos = (onClick?: () => void) =>
+    navGroups.map((group) => {
+      const abierto = grupoAbierto(group);
+      // Un grupo cerrado no puede esconder trabajo pendiente: suma sus contadores.
+      const pendientesDelGrupo = group.items.reduce((n, i) => n + (contadores[i.href] ?? 0), 0);
+      return (
+        <div key={group.title}>
+          <button
+            type="button"
+            onClick={() => alternarGrupo(group)}
+            aria-expanded={abierto}
+            className="w-full flex items-center gap-2 px-3 py-1 mb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-[0.08em] hover:text-gray-600 cursor-pointer"
+          >
+            <span className="flex-1 text-left">{group.title}</span>
+            {!abierto && pendientesDelGrupo > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-falu-red-600 text-white text-[10px] font-bold flex items-center justify-center normal-case tracking-normal">
+                {pendientesDelGrupo}
+              </span>
+            )}
+            <svg className={`w-3 h-3 transition-transform ${abierto ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {abierto && <div className="flex flex-col gap-0.5">{group.items.map((item) => renderNavItem(item, onClick))}</div>}
+        </div>
+      );
+    });
+
   const Sidebar = (
     <aside className="hidden lg:flex lg:flex-col fixed top-0 left-0 h-screen w-60 bg-white border-r border-gray-100 z-30">
       {/* Logo */}
@@ -260,18 +307,7 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
       </Link>
 
       {/* Nav scroll area */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-5">
-        {navGroups.map((group) => (
-          <div key={group.title}>
-            <p className="px-3 mb-1.5 text-[10px] font-semibold text-gray-300 uppercase tracking-[0.08em]">
-              {group.title}
-            </p>
-            <div className="flex flex-col gap-0.5">
-              {group.items.map((item) => renderNavItem(item))}
-            </div>
-          </div>
-        ))}
-      </nav>
+      <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-3">{renderGrupos()}</nav>
 
       {/* Footer (user + logout) */}
       <div className="border-t border-gray-100 p-3 flex-shrink-0">
@@ -355,18 +391,7 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          <div className="px-3 py-3 flex flex-col gap-4">
-            {navGroups.map((group) => (
-              <div key={group.title}>
-                <p className="px-3 mb-1.5 text-[10px] font-semibold text-gray-300 uppercase tracking-[0.08em]">
-                  {group.title}
-                </p>
-                <div className="flex flex-col gap-0.5">
-                  {group.items.map((item) => renderNavItem(item, () => setMenuOpen(false)))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="px-3 py-3 flex flex-col gap-3">{renderGrupos(() => setMenuOpen(false))}</div>
 
           <div className="px-3 pb-3 pt-1 border-t border-gray-50 mt-1">
             <button
@@ -383,20 +408,15 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="lz-admin min-h-screen bg-gray-50 overflow-x-hidden">
       {Sidebar}
       {MobileTopbar}
 
-      <div className="lg:ml-60 flex flex-col min-h-screen">
-        <main className="flex-1">{children}</main>
-
-        <footer className="mt-8 mb-6 border-t border-gray-100 pt-6 px-4 md:px-8">
-          <div className="max-w-screen-xl mx-auto">
-            <p className="text-xs text-gray-400">
-              © {new Date().getFullYear()} LZ English Academy. Todos los derechos reservados.
-            </p>
-          </div>
-        </footer>
+      <div className="lg:ml-60 flex flex-col min-h-screen min-w-0">
+        {/* `min-w-0`: sin él, una tabla ancha estira la columna y lo que sobra
+            queda recortado por el `overflow-x-hidden` de arriba, invisible. */}
+        <main id="lz-admin-contenido" className="flex-1 min-w-0">{children}</main>
+        <AdaptarTablas raizId="lz-admin-contenido" />
       </div>
 
       {idleWarning && (

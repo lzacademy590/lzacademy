@@ -58,6 +58,12 @@ export default function FechasPage() {
         () => planesDeCheckout(catalogoDeFechas).map((p) => p.key).filter(requiresCohort),
         [catalogoDeFechas, requiresCohort],
     );
+    // Nombre que se ve en el chip: el mismo que en el checkout. Una rama abierta en
+    // la plataforma tiene clave interna ("PERSONALIZED_PLUS") y nombre de negocio.
+    const nombreDePlan = useMemo(
+        () => Object.fromEntries(planesDeCheckout(catalogoDeFechas).map((p) => [p.key, p.nombreEnCheckout])) as Record<string, string>,
+        [catalogoDeFechas],
+    );
 
     // Start dates
     const [dates, setDates]     = useState<StartDate[]>([]);
@@ -235,7 +241,7 @@ export default function FechasPage() {
                             type="button"
                             disabled={saving}
                             aria-pressed={!excluded}
-                            title={`${p}: ${excluded ? "excluido — clic para habilitar" : "disponible — clic para excluir"}`}
+                            title={`${nombreDePlan[p] ?? p}: ${excluded ? "excluido — clic para habilitar" : "disponible — clic para excluir"}`}
                             onClick={() => {
                                 const next = excluded ? current.filter((x) => x !== p) : [...current, p];
                                 saveDates(dates.map((d, idx) => idx === i ? { ...d, [field]: next } : d));
@@ -251,7 +257,7 @@ export default function FechasPage() {
                             ) : (
                                 <svg className="h-3 w-3 text-emerald-500" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.2l2.4 2.4L10 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
                             )}
-                            {p}
+                            {nombreDePlan[p] ?? p}
                         </button>
                     );
                 })}

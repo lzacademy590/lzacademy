@@ -5,7 +5,8 @@
 // guardar, cada uno de un color. Una pantalla nueva se arma con esto y se ve igual
 // que las demás.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { planColor } from "../_utils/planColors";
 import { ESTADOS_DE_ALUMNO, ESTADOS_DE_SUSCRIPCION, TONO_CLASES, type Tono } from "./etiquetas";
 
@@ -13,6 +14,7 @@ export { Spinner, Boton, BotonEnlace, type VarianteDeBoton } from "./boton";
 import { Spinner } from "./boton";
 export { useToast } from "./toast";
 export { useConfirmar } from "./confirmar";
+export { EscribirCorreo, PLANTILLAS, type DestinoDelCorreo, type GrupoDeAlumnos, type Plantilla } from "./escribir-correo";
 export * from "./etiquetas";
 
 /* ── Página ─────────────────────────────────────────────────────────────── */
@@ -49,7 +51,61 @@ export function EncabezadoDePagina({
   );
 }
 
-/** Bloque blanco con título opcional. */
+const EVENTO_ALMACEN = "lz-admin-almacen";
+
+/**
+ * Un valor de `localStorage` que se puede leer en el render sin descuadrar la
+ * hidratación: en el servidor (y en el primer render del cliente) vale `null`.
+ * Si el almacenamiento no está disponible, también `null`: solo no se recuerda.
+ */
+export function useAlmacenLocal(clave: string | null): [string | null, (v: string) => void] {
+  const valor = useSyncExternalStore(
+    (avisar) => {
+      window.addEventListener("storage", avisar);
+      window.addEventListener(EVENTO_ALMACEN, avisar);
+      return () => {
+        window.removeEventListener("storage", avisar);
+        window.removeEventListener(EVENTO_ALMACEN, avisar);
+      };
+    },
+    () => { try { return clave ? localStorage.getItem(clave) : null; } catch { return null; } },
+    () => null,
+  );
+  const guardar = (v: string) => {
+    if (!clave) return;
+    try { localStorage.setItem(clave, v); } catch { /* sin almacenamiento */ }
+    window.dispatchEvent(new Event(EVENTO_ALMACEN));
+  };
+  return [valor, guardar];
+}
+
+/**
+ * Recuerda si un apartado plegable está abierto, por pantalla y por título.
+ * Lo que no se ha tocado sigue `inicial`.
+ */
+export function usePlegado(clave: string | null, inicial = true) {
+  const ruta = usePathname();
+  const [guardado, guardar] = useAlmacenLocal(clave ? `lz-admin-plegado:${clave}@${ruta}` : null);
+  const [local, setLocal] = useState(inicial);
+  const abierto = guardado === "1" ? true : guardado === "0" ? false : local;
+  const alternar = () => {
+    setLocal(!abierto);
+    guardar(abierto ? "0" : "1");
+  };
+  return { abierto, alternar };
+}
+
+const CHEVRON = (abierto: boolean) => (
+  <svg className={`w-4 h-4 mt-0.5 flex-shrink-0 text-gray-300 transition-transform ${abierto ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
+/**
+ * Bloque blanco con título opcional. Con título se PLIEGA haciendo clic en la
+ * cabecera (`plegable={false}` lo impide; `abierta={false}` lo hace nacer
+ * cerrado). Lo que el admin pliega se recuerda por pantalla.
+ */
 export function Tarjeta({
   titulo,
   descripcion,
@@ -57,6 +113,8 @@ export function Tarjeta({
   children,
   sinRelleno = false,
   className = "",
+  plegable = true,
+  abierta = true,
 }: {
   titulo?: React.ReactNode;
   descripcion?: React.ReactNode;
@@ -64,19 +122,40 @@ export function Tarjeta({
   children: React.ReactNode;
   sinRelleno?: boolean;
   className?: string;
+  plegable?: boolean;
+  abierta?: boolean;
 }) {
+  const sePliega = plegable && !!titulo;
+  const { abierto, alternar } = usePlegado(sePliega && typeof titulo === "string" ? titulo : null, abierta);
+  const visible = !sePliega || abierto;
   return (
-    <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden ${className}`}>
+    <section className={`bg-white rounded-2xl border border-gray-100 overflow-hidden ${className}`}>
       {(titulo || acciones) && (
-        <div className="px-5 py-4 border-b border-gray-50 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {titulo && <h3 className="text-sm font-semibold text-gray-700">{titulo}</h3>}
-            {descripcion && <p className="text-xs text-gray-400 mt-0.5">{descripcion}</p>}
-          </div>
-          {acciones && <div className="flex-shrink-0 flex items-center gap-2">{acciones}</div>}
+        <div className={`px-5 py-3.5 flex items-center justify-between gap-3 ${visible ? "border-b border-gray-50" : ""}`}>
+          {sePliega ? (
+            <button
+              type="button"
+              onClick={alternar}
+              aria-expanded={abierto}
+              className="min-w-0 flex-1 flex items-start gap-2 text-left cursor-pointer group"
+            >
+              {CHEVRON(abierto)}
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-700 group-hover:text-gray-900">{titulo}</span>
+                {descripcion && abierto && <span className="block text-xs text-gray-400 mt-0.5">{descripcion}</span>}
+              </span>
+            </button>
+          ) : (
+            <div className="min-w-0">
+              {titulo && <h3 className="text-sm font-semibold text-gray-700">{titulo}</h3>}
+              {descripcion && <p className="text-xs text-gray-400 mt-0.5">{descripcion}</p>}
+            </div>
+          )}
+          {acciones && visible && <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-2">{acciones}</div>}
         </div>
       )}
-      <div className={sinRelleno ? "" : "p-5"}>{children}</div>
+      {/* Oculto, no desmontado: un formulario a medias dentro no pierde lo escrito. */}
+      <div className={`${sinRelleno ? "" : "p-5"} ${visible ? "" : "hidden"}`}>{children}</div>
     </section>
   );
 }
@@ -107,14 +186,14 @@ export function TarjetaDeNumero({
   acento?: keyof typeof ACENTOS;
 }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 flex items-start gap-3 sm:gap-4">
       {icono && (
-        <div className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${ACENTOS[acento]}`}>
+        <div className={`hidden sm:flex flex-shrink-0 w-10 h-10 rounded-xl items-center justify-center ${ACENTOS[acento]}`}>
           {icono}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-tight">{etiqueta}</p>
+        <p className="text-[11px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide leading-tight">{etiqueta}</p>
         <p className="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 truncate">{valor}</p>
         {detalle && <p className="text-xs text-gray-400 mt-0.5 truncate">{detalle}</p>}
       </div>
@@ -126,7 +205,8 @@ export function TarjetaDeNumero({
 export function FilaDeNumeros({ children, columnas = 4 }: { children: React.ReactNode; columnas?: 2 | 3 | 4 | 5 }) {
   // Con el menú lateral (240 px), 4-5 columnas solo caben a partir de xl.
   const lg = { 2: "lg:grid-cols-2", 3: "lg:grid-cols-3", 4: "xl:grid-cols-4", 5: "lg:grid-cols-3 xl:grid-cols-5" }[columnas];
-  return <div className={`grid grid-cols-1 sm:grid-cols-2 ${lg} gap-4 mb-6`}>{children}</div>;
+  // Dos por fila ya en el móvil: una por fila eran cuatro pantallas de scroll para cuatro números.
+  return <div className={`grid grid-cols-2 ${lg} gap-3 sm:gap-4 mb-6`}>{children}</div>;
 }
 
 /* ── Estados de carga ───────────────────────────────────────────────────── */
