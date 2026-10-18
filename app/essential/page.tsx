@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useFeaturesDelPlan } from "@/app/hooks/useFeaturesDelPlan";
+import ConfianzaDeCompra from "@/app/components/ConfianzaDeCompra";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ContactModal from "@/app/components/ContactModal";
@@ -159,6 +160,7 @@ function EssentialPlanContent() {
                   <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3l5 5-5 5" /></svg>
                 </button>
               </div>
+              <ConfianzaDeCompra clave="Essential" className="mt-4" />
 
             </div>
           </div>

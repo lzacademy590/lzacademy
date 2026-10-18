@@ -7,7 +7,12 @@ import PreguntasFrecuentes from "@/app/components/Questions";
 import { TestimonialsSection } from "@/app/components/Testimonials";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
 import { fraseDeClases } from "@/app/lib/dias-de-clase";
-import { medirListaDePlanes, medirPlanElegido, type PlanMedido } from "@/app/lib/analitica";
+import { medirListaDePlanes, medirPlanElegido, medirRecomendacion, type PlanMedido } from "@/app/lib/analitica";
+import { recomendarPlan } from "@/app/lib/recomendacion";
+import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import ConfianzaDeCompra from "@/app/components/ConfianzaDeCompra";
+import { unidadDePrecio } from "@/app/components/PrecioDelPlan";
+import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 import {
   usePlanesDelCatalogo,
   precioEtiqueta,
@@ -395,6 +400,20 @@ function EscaleraDeRamas({
   );
 }
 
+/** Una fila de la tabla "Compara los planes". */
+function FilaComparar({ titulo, celdas }: { titulo: string; celdas: React.ReactNode[] }) {
+  return (
+    <tr className="border-b border-zinc-100 align-top">
+      <th scope="row" className="sticky left-0 z-10 bg-white px-4 py-3 text-[12px] font-bold text-zinc-500">
+        {titulo}
+      </th>
+      {celdas.map((c, i) => (
+        <td key={i} className="px-4 py-3">{c}</td>
+      ))}
+    </tr>
+  );
+}
+
 function PasosTresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -403,6 +422,7 @@ function PasosTresContent() {
   const [flipped, setFlipped] = useState<Record<string, boolean>>({});
   const [reducedMotion, setReducedMotion] = useState(false);
   const { isPlanAvailable, cuposLabel } = usePlanCupos();
+  const { requiresCohort, loading: cargandoCohorte } = usePlanCohorte();
   /*
     Las cards se DERIVAN del catálogo. Ver el bloque de `PRESENTACION` arriba:
     la lista y el precio los manda el backend (y detrás, el admin de la
@@ -503,7 +523,12 @@ function PasosTresContent() {
           price: precioEtiqueta(f.priceCents),
           // Para la analítica: el precio de la etiqueta ya viene formateado.
           precioCents: f.priceCents,
-          priceUnit: "USD / 28 días",
+          /*
+            ⚠️ La misma regla que las landings (`unidadDePrecio`): "/ 28 días" solo
+            si se REPITE. En un pago único decía "$200 USD / 28 días" con
+            "Pago único" debajo — la tarifa y su desmentido en la misma carta.
+          */
+          priceUnit: unidadDePrecio(f.recurring === true).trim(),
           /*
             ⚠️ **La nota de cobro sale del DATO, no del copy local.** Aquí ganaba
             un `billingNote` escrito por plan aquí abajo, así que si el admin
@@ -545,6 +570,8 @@ function PasosTresContent() {
             Esto sale de `Plan.diasDeClase`, así que no se puede quedar viejo.
           */
           clasesLinea: fraseDeClases(f.liveClasses ?? null, f.classDays ?? [], f.classMode ?? null, f.sessionsPerWeek ?? null),
+          // Para la tabla comparativa: `false` es "sin clases en vivo", `null` es "no se sabe".
+          tieneClases: f.liveClasses ?? null,
           externo: !arte,
         };
       });
@@ -632,10 +659,41 @@ function PasosTresContent() {
       };
     });
 
-  // Texto del badge: para Fluidez usa el conteo real de cupos cuando está disponible.
-  function badgeText(plan: (typeof plans)[number]): string | undefined {
-    if (plan.id === "fluidez") return cuposLabel("Fluidez") || plan.badge?.text;
-    return plan.badge?.text;
+  /*
+    La RECOMENDACIÓN según lo que contestó en los pasos 1 y 2 (2026-10-17). Ver
+    `lib/recomendacion.ts`. Solo entre las cartas que se enseñan, y la carta
+    recomendada pasa a ser la PRIMERA: en móvil es la que se ve sin hacer scroll.
+  */
+  const clavesVisibles = visiblePlans.map((p) => String(p.claveDelPlan)).join(",");
+  const recomendacion = useMemo(
+    () => recomendarPlan(nivel, dificultades, clavesVisibles.split(",")),
+    [nivel, dificultades, clavesVisibles],
+  );
+  const esRecomendado = (plan: { claveDelPlan?: string }) =>
+    !!recomendacion && recomendacion.clave === plan.claveDelPlan;
+  const cartas = recomendacion
+    ? [...visiblePlans].sort((a, b) => Number(esRecomendado(b)) - Number(esRecomendado(a)))
+    : visiblePlans;
+
+  const recomendacionMedida = useRef<string | null>(null);
+  useEffect(() => {
+    if (!recomendacion || recomendacionMedida.current === recomendacion.clave) return;
+    recomendacionMedida.current = recomendacion.clave;
+    medirRecomendacion(recomendacion.clave);
+  }, [recomendacion]);
+
+  /*
+    El badge de cada carta. ⚠️ Con una recomendación PERSONAL, el "Recomendado"
+    fijo de Premium se retira: dos cartas diciendo "recomendado" a la vez —una
+    para ti y otra para todos— es no recomendar ninguna.
+  */
+  function badgeDe(plan: (typeof visiblePlans)[number]): { text: string; bg: string; color: string } | null {
+    if (esRecomendado(plan)) return { text: "Recomendado para ti", bg: "#fde68a", color: "#7a4a00" };
+    if (!plan.badge) return null;
+    if (recomendacion && plan.badge.text === "Recomendado") return null;
+    // Para Fluidez usa el conteo real de cupos cuando está disponible.
+    const text = plan.id === "fluidez" ? cuposLabel("Fluidez") || plan.badge.text : plan.badge.text;
+    return { ...plan.badge, text };
   }
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -716,15 +774,36 @@ function PasosTresContent() {
             Volver
           </button>
         </div>
-        <p className="text-xs font-bold uppercase tracking-widest mb-3 text-white/60">
-          Paso 3 de 4
-        </p>
+        <ProgresoDelEmbudo paso={3} tono="oscuro" />
         <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight text-center">
           Elige tu experiencia
         </h1>
         <p className="mt-3 text-[15px] text-white/75 font-medium max-w-2xl text-center">
           Cada plan incluye el Método 590. Elige la intensidad de acompañamiento que necesitas.
         </p>
+        {recomendacion && (
+          <div
+            className="mt-5 w-full max-w-2xl rounded-2xl px-5 py-4 text-left"
+            style={{ backgroundColor: "rgba(253,230,138,0.14)", border: "1.5px solid rgba(253,230,138,0.55)" }}
+          >
+            <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: "#fde68a" }}>
+              Según lo que nos contaste
+            </p>
+            <p className="mt-1 text-[15px] font-semibold leading-snug text-white">
+              Te recomendamos{" "}
+              <strong>
+                {(cartas[0]?.name ?? recomendacion.clave).replace(/\s+/g, " ")}
+              </strong>
+              . {recomendacion.motivo}
+            </p>
+          </div>
+        )}
+        <a
+          href="#comparar"
+          className="mt-4 text-[13px] font-bold text-white/80 underline decoration-dotted underline-offset-4 hover:text-white"
+        >
+          Comparar los planes lado a lado ↓
+        </a>
       </div>
 
       {/* Cards + Muñecas */}
@@ -732,18 +811,20 @@ function PasosTresContent() {
 
         {/* ── Cards mobile (sin 3D) ── */}
         <div className="sm:hidden w-full max-w-6xl mx-auto px-4 flex flex-col gap-6">
-          {visiblePlans.map((plan) => (
+          {cartas.map((plan) => {
+            const badge = badgeDe(plan);
+            return (
             <div key={plan.id} className="relative">
-              {plan.badge && (
+              {badge && (
                 <span
-                  className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
-                  style={{ backgroundColor: plan.badge.bg, color: plan.badge.color }}
+                  className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
+                  style={{ backgroundColor: badge.bg, color: badge.color }}
                 >
-                  {badgeText(plan)}
+                  {badge.text}
                 </span>
               )}
               <div
-                className="rounded-3xl px-5 py-5 shadow-lg overflow-hidden"
+                className={`rounded-3xl px-5 py-5 shadow-lg overflow-hidden ${esRecomendado(plan) ? "ring-4 ring-[#fde68a]" : ""}`}
                 style={{ backgroundColor: plan.cardBg }}
               >
                 {/* Nombre + precio en la misma fila */}
@@ -846,6 +927,11 @@ function PasosTresContent() {
                 >
                   Seleccionar
                 </button>
+                <ConfianzaDeCompra
+                  clave={String(plan.claveDelPlan)}
+                  tono={plan.nameColor === "#fff" ? "oscuro" : "claro"}
+                  className="mt-3"
+                />
                 <div className="relative h-[180px] mt-3 -mx-5 -mb-5">
                   <Image
                     src={plan.muñeca}
@@ -858,23 +944,31 @@ function PasosTresContent() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── Cards desktop (con flip 3D) ── */}
         <div className="hidden sm:grid w-full max-w-4xl mx-auto px-4 grid-cols-1 sm:grid-cols-2 gap-3">
-          {visiblePlans.map((plan) => (
+          {cartas.map((plan) => {
+            const badge = badgeDe(plan);
+            return (
             <div key={plan.id} className="flex flex-col items-center">
               <div
-                className="w-full relative"
-                style={{ perspective: "1000px", WebkitPerspective: "1000px", height: "440px" }}
+                className={`w-full relative rounded-3xl ${esRecomendado(plan) ? "ring-4 ring-[#fde68a]" : ""}`}
+                /*
+                  470 y no 440: con la línea de garantía/fecha, el reverso de una
+                  FAMILIA (cuatro filas de escalera) se salía 13 px por arriba y
+                  el título quedaba bajo el badge. Medido, no estimado.
+                */
+                style={{ perspective: "1000px", WebkitPerspective: "1000px", height: "470px" }}
               >
-                {plan.badge && (
+                {badge && (
                   <span
-                    className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
-                    style={{ backgroundColor: plan.badge.bg, color: plan.badge.color }}
+                    className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
+                    style={{ backgroundColor: badge.bg, color: badge.color }}
                   >
-                    {badgeText(plan)}
+                    {badge.text}
                   </span>
                 )}
                 <div
@@ -938,8 +1032,17 @@ function PasosTresContent() {
                         </li>
                       ))}
                     </ul>
-                    <p className="text-[13px] font-bold text-center mt-2 opacity-60" style={{ color: plan.nameColor }}>
-                      Clic para ver el precio →
+                    {/* El precio ya se lee en el FRENTE: esconderlo detrás de un
+                        giro obligaba a voltear cada carta para comparar. El
+                        reverso sigue con el botón y, en una familia, la escalera. */}
+                    <p className="text-[20px] font-extrabold text-center mt-2 pr-24" style={{ color: plan.nameColor }}>
+                      {plan.esFamilia && plan.ramas.length
+                        ? `Desde ${precioEtiqueta(plan.ramas[0].priceCents)}`
+                        : plan.price}{" "}
+                      <span className="text-[11px] font-bold opacity-70">{plan.priceUnit}</span>
+                    </p>
+                    <p className="text-[12px] font-bold text-center mt-0.5 opacity-60 pr-24" style={{ color: plan.nameColor }}>
+                      Clic para elegir →
                     </p>
                     {/* Muñeca chica de acento en la esquina — no estorba el texto */}
                     <div className="pointer-events-none select-none absolute bottom-2 right-2 h-[150px] w-[115px]">
@@ -1012,11 +1115,16 @@ function PasosTresContent() {
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleSeleccionar(plan); }}
-                      className="mt-6 inline-flex items-center rounded-full px-7 py-2.5 text-[13px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
+                      className="mt-4 inline-flex items-center rounded-full px-7 py-2.5 text-[13px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
                       style={{ color: plan.btnColor }}
                     >
                       Seleccionar
                     </button>
+                    <ConfianzaDeCompra
+                      clave={String(plan.claveDelPlan)}
+                      tono="oscuro"
+                      className="mt-4 max-w-[300px]"
+                    />
                     <p className="text-[12px] font-bold mt-3 opacity-50 cursor-pointer" style={{ color: "#fff" }}>
                       ← Ver detalles
                     </p>
@@ -1024,8 +1132,83 @@ function PasosTresContent() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* ── Comparar lado a lado (2026-10-17) ──
+            Girar cuatro cartas una por una para comparar precios obliga a
+            ACORDARSE de cada una. Aquí van juntas, con los mismos datos que las
+            cartas: misma rama elegida, mismo precio, misma nota de cobro. */}
+        <section id="comparar" className="w-full max-w-5xl mx-auto px-4 mt-10 mb-12 scroll-mt-24">
+          <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-white">
+            Compara los planes
+          </h2>
+          <p className="mt-2 text-center text-[13px] text-white/70">
+            Todos incluyen el Método 590 completo y la plataforma.
+          </p>
+          <div className="mt-5 overflow-x-auto rounded-2xl bg-white shadow-lg">
+            <table className="w-full min-w-[560px] border-collapse text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-zinc-200">
+                  <th className="sticky left-0 z-10 bg-white px-4 py-3 text-[11px] font-extrabold uppercase tracking-widest text-zinc-400">
+                    Plan
+                  </th>
+                  {cartas.map((plan) => (
+                    <th key={plan.id} className="px-4 py-3 align-bottom">
+                      {esRecomendado(plan) && (
+                        <span className="mb-1 inline-block rounded-full bg-[#fde68a] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#7a4a00]">
+                          Para ti
+                        </span>
+                      )}
+                      <span className="block text-[15px] font-extrabold" style={{ color: plan.btnColor }}>
+                        {plan.name.replace(/\s+/g, " ")}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-zinc-700">
+                <FilaComparar titulo="Precio" celdas={cartas.map((plan) => (
+                  <span key={plan.id}>
+                    <strong className="text-[16px] text-zinc-900">{plan.price}</strong>{" "}
+                    <span className="text-zinc-500">{plan.priceUnit}</span>
+                    {plan.esFamilia && (
+                      <span className="block text-[11px] text-zinc-500">según las clases por semana que elijas</span>
+                    )}
+                  </span>
+                ))} />
+                <FilaComparar titulo="Cobro" celdas={cartas.map((plan) => plan.billingNote)} />
+                <FilaComparar titulo="Clases" celdas={cartas.map((plan) =>
+                  plan.clasesLinea ?? (plan.tieneClases === false ? "Sin clases en vivo" : "—"),
+                )} />
+                <FilaComparar titulo="Empiezas" celdas={cartas.map((plan) =>
+                  cargandoCohorte
+                    ? "…"
+                    : requiresCohort(String(plan.claveDelPlan))
+                      ? "Con tu grupo, en la fecha que elijas"
+                      : "Hoy mismo",
+                )} />
+                <FilaComparar titulo="Garantía" celdas={cartas.map(() => "3 días (1.ª inscripción)")} />
+                <tr>
+                  <td className="sticky left-0 bg-white px-4 py-3" />
+                  {cartas.map((plan) => (
+                    <td key={plan.id} className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSeleccionar(plan)}
+                        className="rounded-full px-5 py-2 text-[13px] font-extrabold text-white transition hover:opacity-90 active:scale-95"
+                        style={{ backgroundColor: plan.btnColor }}
+                      >
+                        Seleccionar
+                      </button>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       {/* Testimonios */}

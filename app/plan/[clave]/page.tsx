@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { unidadDePrecio, notaDeCobro } from "@/app/components/PrecioDelPlan";
 import ContactModal from "@/app/components/ContactModal";
 import HorariosPublicados from "@/app/components/HorariosPublicados";
+import ConfianzaDeCompra from "@/app/components/ConfianzaDeCompra";
 import PlanSwitcher from "@/app/components/PlanSwitcher";
 import { PLAN_MAP } from "@/app/lib/plans";
 import { fraseDeClases } from "@/app/lib/dias-de-clase";
@@ -310,6 +311,7 @@ function LandingDePlan({ clave }: { clave: string }) {
                   <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3l5 5-5 5" /></svg>
                 </button>
               </div>
+              <ConfianzaDeCompra clave={plan.key} className="mt-4" />
               <HorariosPublicados plan={plan.key} nivel={nivel} />
 
             </div>

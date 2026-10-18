@@ -4,6 +4,38 @@ import Image from "next/image";
 import Link from "next/link";
 import { InfoSessionSection } from "../components/Infosessionsection";
 import Pill from "../components/Pill";
+import { TestimonialsSection } from "../components/Testimonials";
+import { usePlanesDelCatalogo, precioEtiqueta } from "../hooks/usePlanesDelCatalogo";
+
+/**
+ * "Desde $10 USD cada 4 semanas · Garantía de 3 días", bajo el botón del hero.
+ *
+ * ⚠️ El importe es el del plan MÁS BARATO que vende el embudo, leído del
+ * catálogo, con el de Essential como respaldo mientras carga. Escrito a mano se
+ * quedaría mintiendo el primer día que el admin cambie el precio.
+ */
+const CLAVES_DEL_EMBUDO = ["Essential", "Premium", "Personalizado", "Fluidez"];
+function PrecioDeEntrada() {
+    const catalogo = usePlanesDelCatalogo();
+    const precios = (catalogo ?? [])
+        .filter((p) => CLAVES_DEL_EMBUDO.includes(p.key) || p.origenPlataforma)
+        .map((p) => p.priceCents)
+        .filter((c) => c > 0);
+    const desde = precios.length ? Math.min(...precios) : 1000;
+    return (
+        // En móvil va en DOS líneas: en una sola, la garantía quedaba debajo de
+        // los botones flotantes de Discord/WhatsApp (medido a 375 px).
+        <p className="flex flex-col gap-0.5 text-[13px] font-semibold text-zinc-600 sm:block">
+            <span>
+                Desde <strong className="text-zinc-900">{precioEtiqueta(desde)} USD</strong> cada 4 semanas
+            </span>
+            <span className="hidden sm:inline">{" · "}</span>
+            <Link href="/reembolsos" className="self-start underline decoration-dotted underline-offset-2">
+                Garantía de 3 días
+            </Link>
+        </p>
+    );
+}
 
 export default function InicioPage() {
     return (
@@ -37,6 +69,16 @@ export default function InicioPage() {
                                 />
                             </div>
 
+                            {/* El titular de la imagen, en TEXTO: lo leen Google y
+                                los lectores de pantalla, que de la imagen solo ven el alt. */}
+                            <h1 className="sr-only">
+                                Método 590: lleva tu inglés al siguiente nivel en 90 días
+                            </h1>
+                            <p className="mt-4 max-w-[480px] text-[15px] lg:text-[17px] font-medium leading-relaxed text-zinc-700">
+                                Una rutina diaria de 5 sesiones, clases en vivo y una comunidad que te
+                                acompaña. Para principiantes y para quienes ya tienen base.
+                            </p>
+
                             <div className="mt-5 lg:mt-6 flex flex-col items-start gap-3">
                                 <Link
                                     href="/paso-uno"
@@ -48,11 +90,14 @@ export default function InicioPage() {
                                         letterSpacing: "0.02em",
                                     }}
                                 >
-                                    Empezar Proceso
+                                    Descubre tu plan en 1 minuto
                                     <span className="text-xl leading-none">›</span>
                                 </Link>
+                                <PrecioDeEntrada />
+                                {/* A la RECOMPRA, no a las cartas del embudo de captación:
+                                    quien ya estudia tiene su propio flujo (verify-student). */}
                                 <Link
-                                    href="/paso-tres"
+                                    href="/pago-estudiantes"
                                     className="inline-block py-3 px-1 text-sm font-semibold transition hover:opacity-70"
                                     style={{ color: "#bd181e" }}
                                 >
@@ -79,6 +124,12 @@ export default function InicioPage() {
                 </div>
             </section>
 
+
+            {/* ── Testimonios, ARRIBA (2026-10-17) ──
+                Antes solo salían en /paso-tres, o sea a quien ya había decidido
+                mirar precios. La prueba social trabaja antes: es lo que convence
+                de empezar el embudo. */}
+            <TestimonialsSection />
 
             {/* ── El método nació de una necesidad real ── */}
             <section className="relative w-full py-20 px-4 overflow-hidden" style={{ background: "#fafafa" }}>
