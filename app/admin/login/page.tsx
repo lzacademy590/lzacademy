@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { Boton } from "../_ui";
 
 export default function AdminLogin() {
     const [email, setEmail]               = useState("");
@@ -18,7 +19,7 @@ export default function AdminLogin() {
         setLoading(true);
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-            setErrorMsg("Invalid credentials. Please check your email and password.");
+            setErrorMsg("Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo.");
             setLoading(false);
             return;
         }
@@ -59,14 +60,14 @@ export default function AdminLogin() {
                             </span>
                             <div className="leading-none">
                                 <p className="text-base font-bold text-gray-900">LZ Academy</p>
-                                <p className="text-xs text-gray-400 mt-0.5">Admin panel</p>
+                                <p className="text-xs text-gray-400 mt-0.5">Panel de administración</p>
                             </div>
                         </div>
 
                         {/* Heading */}
                         <div className="mb-7">
                             <h1 className="text-[26px] font-bold text-gray-900 leading-tight tracking-tight">
-                                Welcome<br />back.
+                                Hola<br />de nuevo.
                             </h1>
                         </div>
 
@@ -84,7 +85,7 @@ export default function AdminLogin() {
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div className="space-y-1.5">
                                 <label htmlFor="email" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Email
+                                    Correo
                                 </label>
                                 <input
                                     id="email"
@@ -100,7 +101,7 @@ export default function AdminLogin() {
 
                             <div className="space-y-1.5">
                                 <label htmlFor="password" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Password
+                                    Contraseña
                                 </label>
                                 <div className="relative">
                                     <input
@@ -118,7 +119,7 @@ export default function AdminLogin() {
                                         onClick={() => setShowPassword((v) => !v)}
                                         tabIndex={-1}
                                         className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors rounded-lg cursor-pointer"
-                                        aria-label={showPassword ? "Hide password" : "Show password"}
+                                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                                     >
                                         {showPassword ? (
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -134,28 +135,16 @@ export default function AdminLogin() {
                                 </div>
                             </div>
 
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full flex items-center justify-center gap-2 bg-gray-950 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-2xl transition-all duration-200 font-semibold text-sm mt-2 cursor-pointer tracking-wide"
-                            >
-                                {loading ? (
+                            <Boton type="submit" variante="primario" cargando={loading} className="w-full mt-2">
+                                {loading ? "Entrando…" : (
                                     <>
-                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                        </svg>
-                                        Signing in…
-                                    </>
-                                ) : (
-                                    <>
-                                        Continue
+                                        Entrar
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                         </svg>
                                     </>
                                 )}
-                            </button>
+                            </Boton>
                         </form>
 
                         {/* Footer: copyright */}

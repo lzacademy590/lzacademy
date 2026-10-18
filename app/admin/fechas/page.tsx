@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
 import { todayPT } from "../_utils/ptTime";
+import { fmtDia } from "../_utils/format";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
+import { Pagina, EncabezadoDePagina, Tarjeta, Cargando, Boton, Vacio, Chip, useToast, useConfirmar } from "../_ui";
 
 interface StartDate {
     value: string;
@@ -18,6 +21,8 @@ interface StartDate {
     excludedPlansSpecial?: string[]; // planes excluidos de /pago-estudiantes
 }
 
+// ⚠️ `label` se GUARDA en la base y lo leen el formulario público y la plataforma
+// ("2 de Noviembre de 2026"). No se cambia su formato desde aquí.
 const MONTH_NAMES_ES = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -28,13 +33,10 @@ function buildLabel(value: string) {
     return `${parseInt(day, 10)} de ${MONTH_NAMES_ES[parseInt(month, 10) - 1]} de ${year}`;
 }
 
-function formatMMDDYYYY(value: string) {
-    const [year, month, day] = value.split("-");
-    return `${month}/${day}/${year}`;
-}
-
 export default function FechasPage() {
     const router = useRouter();
+    const toast = useToast();
+    const confirmar = useConfirmar();
 
     // Los chips de exclusión solo tienen sentido para los planes que SE COMPRAN
     // PARA UNA FECHA. Un plan sin cohorte (Essential, Speaking) empieza el día del
@@ -63,8 +65,6 @@ export default function FechasPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [saving, setSaving]   = useState(false);
     const [newDate, setNewDate] = useState("");
-    const [error, setError]     = useState("");
-    const [saved, setSaved]     = useState(false);
 
     const load = useCallback(async () => {
         setLoadError(null);
@@ -101,28 +101,35 @@ export default function FechasPage() {
       panel que decide qué planes se abren en qué fecha, un guardado que se pierde
       en silencio es de lo peor que puede pasar.
 
+      Cada clic guarda al instante y de forma OPTIMISTA: la lista cambia ya y, si el
+      guardado falla, vuelve a lo que había y el aviso lo dice.
+
       Devuelve si se guardó, para que quien llama no dé por hecho que sí.
     */
     async function saveDates(updatedDates: StartDate[]): Promise<boolean> {
-        setSaving(true); setSaved(false); setError("");
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push("/admin/login"); return false; }
+        const previas = dates;
+        setSaving(true);
+        setDates(updatedDates);
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { setDates(previas); router.push("/admin/login"); return false; }
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/start-dates`, {
                 method: "PUT",
                 headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
                 body: JSON.stringify({ dates: updatedDates }),
             });
             if (res.ok) {
-                setDates(updatedDates); setSaved(true); setTimeout(() => setSaved(false), 2500);
+                toast.exito("Cambios guardados correctamente.");
                 return true;
             }
-            setError("Error guardando los cambios. Intenta de nuevo.");
+            setDates(previas);
+            toast.error("Error guardando los cambios. Intenta de nuevo.");
             return false;
         } catch {
             // Ni siquiera llegó: se distingue de un rechazo del servidor porque lo
             // que hay que hacer es distinto (mirar la conexión, no los datos).
-            setError("No se pudo conectar con el servidor. Los cambios NO se guardaron.");
+            setDates(previas);
+            toast.error("No se pudo conectar con el servidor. Los cambios NO se guardaron.");
             return false;
         } finally {
             setSaving(false);
@@ -147,23 +154,25 @@ export default function FechasPage() {
       protege esto, que es haber pulsado en la fila equivocada — el mismo motivo
       por el que a 375 px había que arreglar el título truncado.
     */
-    function handleDelete(index: number) {
+    async function handleDelete(index: number) {
         const f = dates[index];
-        const ok = window.confirm(
-            `¿Quitar la fecha de inicio ${f?.label ?? f?.value}?\n\n` +
-            "Deja de ofrecerse como fecha de arranque en el sitio y en la plataforma, " +
-            "con sus planes excluidos, y sus horarios se quedan sin fecha.\n\n" +
-            "Si solo quieres dejar de ofrecerla, márcala como Inactiva: eso se puede deshacer."
-        );
+        const ok = await confirmar({
+            titulo: `¿Quitar la fecha de inicio ${f?.label ?? f?.value}?`,
+            mensaje:
+                "Deja de ofrecerse como fecha de arranque en el sitio y en la plataforma, " +
+                "con sus planes excluidos, y sus horarios se quedan sin fecha. " +
+                "Si solo quieres dejar de ofrecerla, márcala como Inactiva: eso se puede deshacer.",
+            confirmar: "Quitar la fecha",
+            peligro: true,
+        });
         if (!ok) return;
         saveDates(dates.filter((_, i) => i !== index));
     }
     async function handleAdd() {
         if (!newDate) return;
-        if (dates.some(d => d.value === newDate)) { setError("Esa fecha ya existe."); return; }
+        if (dates.some(d => d.value === newDate)) { toast.error("Esa fecha ya existe."); return; }
         const updated = [...dates, { value: newDate, label: buildLabel(newDate), enabled: true }]
             .sort((a, b) => a.value.localeCompare(b.value));
-        setError("");
         // ⚠️ El campo se vacía SOLO si se guardó. Vaciarlo antes le borraba al
         // admin la fecha que acababa de teclear cuando el guardado fallaba, y
         // encima sin decirle que había fallado.
@@ -251,33 +260,19 @@ export default function FechasPage() {
     };
 
     if (loadError) return <ErrorState message={loadError} onRetry={load} />;
-
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
+    if (loading) return <Cargando />;
 
     return (
-        <div className="p-4 md:p-8 max-w-2xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Fechas de inicio</h1>
-                <p className="text-sm text-gray-400 mt-1">
-                    Administra las fechas de inicio que el alumno elige al comprar y qué planes se venden en cada una.
-                </p>
-            </div>
+        <Pagina ancho="estrecho">
+            <EncabezadoDePagina
+                titulo="Fechas de inicio"
+                descripcion="Administra las fechas de inicio que el alumno elige al comprar y qué planes se venden en cada una."
+            />
 
             <div className="mb-6">
 
                 {/* Agregar fecha */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Agregar nueva fecha</p>
+                <Tarjeta titulo="Agregar nueva fecha" className="mb-4">
                     <div className="flex gap-3 items-end">
                         <div className="flex-1">
                             <label className="text-xs text-gray-400 font-medium block mb-1">Fecha</label>
@@ -285,45 +280,29 @@ export default function FechasPage() {
                                 type="date"
                                 min={today}
                                 value={newDate}
-                                onChange={(e) => { setNewDate(e.target.value); setError(""); }}
-                                className="w-full p-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
+                                onChange={(e) => setNewDate(e.target.value)}
+                                className="w-full p-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-falu-red-200 focus:border-falu-red-300 bg-gray-50"
                             />
                         </div>
-                        <button
-                            onClick={handleAdd}
-                            disabled={!newDate || saving}
-                            className="px-4 py-2 bg-yellow-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-yellow-orange-600 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
+                        <Boton onClick={handleAdd} disabled={!newDate || saving}>
                             Agregar
-                        </button>
+                        </Boton>
                     </div>
                     {newDate && (
                         <p className="text-xs text-gray-400 mt-2">
                             Se mostrará como: <span className="font-medium text-gray-600">{buildLabel(newDate)}</span>
                         </p>
                     )}
-                </div>
-
-                {error && (
-                    <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">{error}</div>
-                )}
-                {saved && (
-                    <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 flex items-center gap-2">
-                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Cambios guardados correctamente.
-                    </div>
-                )}
+                </Tarjeta>
 
                 {/* Lista de fechas */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-700">Fechas configuradas</p>
-                        <span className="text-xs text-gray-400">{dates.length} fechas</span>
-                    </div>
+                <Tarjeta
+                    titulo="Fechas configuradas"
+                    acciones={<span className="text-xs text-gray-400">{dates.length} fechas</span>}
+                    sinRelleno
+                >
                     {dates.length === 0 ? (
-                        <div className="px-5 py-10 text-center text-gray-300 text-sm">No hay fechas configuradas. Agrega una arriba.</div>
+                        <Vacio>No hay fechas configuradas. Agrega una arriba.</Vacio>
                     ) : (
                         <ul className="divide-y divide-gray-50">
                             {dates.map((date, i) => {
@@ -347,17 +326,15 @@ export default function FechasPage() {
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <p className="text-sm font-semibold text-gray-800">{date.label}</p>
-                                                    {isPast && (
-                                                        <span className="shrink-0 text-[10px] font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-md">Pasada</span>
-                                                    )}
+                                                    {isPast && <Chip tono="gris">Pasada</Chip>}
                                                 </div>
                                                 {/*
                                                   ⚠️ Iba en MM/DD/YYYY: el 4 de mayo se leía "05/04/2026", que
-                                                  para un hispanohablante es el 5 de ABRIL. O sea que el
-                                                  respaldo del título truncado no solo era críptico — decía
-                                                  otra fecha. Se pinta el ISO, que no se puede malinterpretar.
+                                                  para un hispanohablante es el 5 de ABRIL. Se pinta con el
+                                                  formato del panel ("4 May 2026", con el mes en letras), que
+                                                  no se puede malinterpretar y sale del VALOR, no de la etiqueta.
                                                 */}
-                                                <p className="text-xs text-gray-400 tabular-nums mt-0.5">{date.value}</p>
+                                                <p className="text-xs text-gray-400 tabular-nums mt-0.5">{fmtDia(date.value)}</p>
                                             </div>
                                             <div className="flex items-center gap-3 sm:gap-5 shrink-0">
                                                 {renderToggle({
@@ -375,6 +352,7 @@ export default function FechasPage() {
                                                     onClick: () => saveDates(dates.map((d, idx) => idx === i ? { ...d, special: !d.special } : d)),
                                                 })}
                                                 <button
+                                                    type="button"
                                                     onClick={() => handleDelete(i)}
                                                     disabled={saving}
                                                     aria-label={`Eliminar ${date.label}`}
@@ -414,7 +392,7 @@ export default function FechasPage() {
                             })}
                         </ul>
                     )}
-                </div>
+                </Tarjeta>
                 <p className="text-xs text-gray-400 mt-3 px-1 leading-relaxed">
                     <strong className="text-emerald-600">Activa</strong> muestra la fecha en el formulario público; <strong className="text-violet-500">Especial</strong> la muestra en <code>/pago-estudiantes</code>. Son independientes y las fechas pasadas se ocultan solas.
                     En el panel de cada fecha, un plan con ✓ está disponible y uno <span className="line-through">tachado</span> queda excluido <strong>solo en ese flujo</strong>.
@@ -424,8 +402,8 @@ export default function FechasPage() {
             {/* Los horarios de grupo viven en su propia pestaña desde el 2026-10-17. */}
             <p className="text-sm text-gray-500 px-1">
                 Los horarios de cada fecha y nivel se publican en{" "}
-                <a href="/admin/horarios" className="font-semibold text-falu-red-600 hover:underline">Horarios por grupo</a>.
+                <Link href="/admin/horarios" className="font-semibold text-falu-red-600 hover:underline">Horarios por grupo</Link>.
             </p>
-        </div>
+        </Pagina>
     );
 }

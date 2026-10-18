@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
+import { Pagina, EncabezadoDePagina, Cargando, Boton, useToast } from "../_ui";
 
 /*
   El editor del texto de los correos que manda ESTE sitio.
@@ -387,8 +388,7 @@ export default function CorreosDelSitioPage() {
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState<string | null>(null);
     const [guardando, setGuardando] = useState(false);
-    const [guardado, setGuardado] = useState(false);
-    const [error, setError] = useState("");
+    const toast = useToast();
     const [vista, setVista] = useState<string | null>(null);
     const [cargandoVista, setCargandoVista] = useState(false);
     const vistaRef = useRef<HTMLDivElement | null>(null);
@@ -497,62 +497,62 @@ export default function CorreosDelSitioPage() {
 
     async function guardar() {
         if (!correo) return;
-        setGuardando(true); setGuardado(false); setError("");
+        setGuardando(true);
         const session = await sesionOSalir();
         if (!session) { setGuardando(false); return; }
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/email-slots`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ correo: correo.clave, textos }),
-        });
+        // try/finally: un fallo de RED dejaba `guardando` en true y el botón muerto.
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/email-slots`, {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ correo: correo.clave, textos }),
+            });
 
-        if (res.ok) {
-            setGuardado(true);
-            setTimeout(() => setGuardado(false), 2500);
-            setDatos((d) => (d ? { ...d, guardado: { ...d.guardado, [correo.clave]: { ...textos } } } : d));
-        } else {
-            const cuerpo = await res.json().catch(() => ({}));
-            setError(cuerpo.error || "No se pudieron guardar los cambios. Intenta de nuevo.");
+            if (res.ok) {
+                toast.exito("Guardado. El próximo correo ya sale con estos textos.");
+                setDatos((d) => (d ? { ...d, guardado: { ...d.guardado, [correo.clave]: { ...textos } } } : d));
+            } else {
+                const cuerpo = await res.json().catch(() => ({}));
+                toast.error(cuerpo.error || "No se pudieron guardar los cambios. Intenta de nuevo.");
+            }
+        } catch {
+            toast.error("No se pudo conectar con el servidor. Los cambios NO se guardaron.");
+        } finally {
+            setGuardando(false);
         }
-        setGuardando(false);
     }
 
     async function verElCorreo() {
         if (!correo) return;
-        setCargandoVista(true); setError("");
+        setCargandoVista(true);
         const session = await sesionOSalir();
         if (!session) { setCargandoVista(false); return; }
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/email-slots/preview`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ correo: correo.clave, textos }),
-        });
-        if (res.ok) {
-            setVista((await res.json()).html);
-            // Sin esto la vista se pinta fuera de pantalla y parece que el botón
-            // no hizo nada: es el fallo que ya tuvo el editor de la plataforma.
-            setTimeout(() => vistaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-        } else {
-            setError("No se pudo generar la vista previa.");
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/email-slots/preview`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ correo: correo.clave, textos }),
+            });
+            if (res.ok) {
+                setVista((await res.json()).html);
+                // Sin esto la vista se pinta fuera de pantalla y parece que el botón
+                // no hizo nada: es el fallo que ya tuvo el editor de la plataforma.
+                setTimeout(() => vistaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+            } else {
+                toast.error("No se pudo generar la vista previa.");
+            }
+        } catch {
+            toast.error("No se pudo generar la vista previa.");
+        } finally {
+            setCargandoVista(false);
         }
-        setCargandoVista(false);
     }
 
     if (errorCarga) return <ErrorState message={errorCarga} onRetry={cargar} />;
 
-    if (cargando || !correo) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-500">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
+    if (cargando || !correo) return <Cargando />;
 
     const asunto = correo.ranuras.find((r) => r.rol === "asunto") ?? null;
     const cuerpo = correo.ranuras.filter((r) => r.rol !== "asunto");
@@ -573,14 +573,12 @@ export default function CorreosDelSitioPage() {
         : [];
 
     return (
-        <div className="p-4 md:p-8 pb-28">
-            <div className="max-w-[720px] mx-auto">
-                <div className="mb-4">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Textos de los correos</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Los que manda este sitio. La bienvenida y los de la cuenta se editan en la plataforma.
-                    </p>
-                </div>
+        <Pagina ancho="estrecho">
+            <div className="pb-20">
+                <EncabezadoDePagina
+                    titulo="Textos de los correos"
+                    descripcion="Los que manda este sitio. La bienvenida y los de la cuenta se editan en la plataforma."
+                />
 
                 {/* La lista: cada correo con su marca de borrador sin guardar. */}
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -591,7 +589,7 @@ export default function CorreosDelSitioPage() {
                             <button
                                 key={e.id}
                                 type="button"
-                                onClick={() => { setSeleccionado(e.claves[0]); setVista(null); setError(""); }}
+                                onClick={() => { setSeleccionado(e.claves[0]); setVista(null); }}
                                 aria-pressed={activo}
                                 className={[
                                     "min-h-[44px] px-3 rounded-xl text-sm font-semibold border transition flex items-center gap-2",
@@ -625,12 +623,12 @@ export default function CorreosDelSitioPage() {
                                     <button
                                         key={c.clave}
                                         type="button"
-                                        onClick={() => { setSeleccionado(c.clave); setVista(null); setError(""); }}
+                                        onClick={() => { setSeleccionado(c.clave); setVista(null); }}
                                         aria-pressed={activo}
                                         className={[
                                             "min-h-[44px] px-3 rounded-lg text-sm font-semibold border transition flex items-center gap-2",
                                             activo
-                                                ? "bg-yellow-orange-500 text-white border-yellow-orange-500"
+                                                ? "bg-gray-900 text-white border-gray-900"
                                                 : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100",
                                         ].join(" ")}
                                     >
@@ -744,29 +742,13 @@ export default function CorreosDelSitioPage() {
                     </div>
                 </div>
 
-                {error && (
-                    <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-300 text-sm text-red-800">{error}</div>
-                )}
-                {guardado && (
-                    <div className="mt-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-300 text-sm text-emerald-800 flex items-center gap-2">
-                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Guardado. El próximo correo ya sale con estos textos.
-                    </div>
-                )}
-
                 {vista && (
                     <div ref={vistaRef} className="mt-6">
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-sm font-semibold text-gray-800">El correo, tal y como se recibe</p>
-                            <button
-                                type="button"
-                                onClick={() => setVista(null)}
-                                className="min-h-[44px] px-3 text-xs font-semibold text-gray-700 hover:text-gray-900 underline decoration-dotted"
-                            >
+                            <Boton variante="fantasma" tamano="sm" onClick={() => setVista(null)}>
                                 Cerrar
-                            </button>
+                            </Boton>
                         </div>
                         <iframe
                             title="Vista previa del correo"
@@ -780,7 +762,7 @@ export default function CorreosDelSitioPage() {
 
             {/* Pie fijo: el correo es largo y el botón de guardar quedaría muy abajo. */}
             <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3">
-                <div className="max-w-[720px] mx-auto flex items-center justify-between gap-3">
+                <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
                     <p className="text-xs text-gray-600 min-w-0 truncate">
                         {sinGuardar
                             ? "Tienes cambios sin guardar"
@@ -789,25 +771,25 @@ export default function CorreosDelSitioPage() {
                                 : "Todo con los textos originales"}
                     </p>
                     <div className="flex items-center gap-2 shrink-0">
-                        <button
-                            type="button"
+                        <Boton
+                            variante="secundario"
+                            className="min-h-[44px]"
                             onClick={verElCorreo}
-                            disabled={cargandoVista}
-                            className="min-h-[44px] px-4 rounded-xl text-sm font-semibold border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-40"
+                            cargando={cargandoVista}
                         >
                             {cargandoVista ? "Generando…" : "Ver el correo real"}
-                        </button>
-                        <button
-                            type="button"
+                        </Boton>
+                        <Boton
+                            className="min-h-[44px]"
                             onClick={guardar}
-                            disabled={guardando || !sinGuardar}
-                            className="min-h-[44px] px-5 rounded-xl text-sm font-semibold bg-yellow-orange-500 text-white hover:bg-yellow-orange-600 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={!sinGuardar}
+                            cargando={guardando}
                         >
                             {guardando ? "Guardando…" : "Guardar y publicar"}
-                        </button>
+                        </Boton>
                     </div>
                 </div>
             </div>
-        </div>
+        </Pagina>
     );
 }

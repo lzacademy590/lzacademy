@@ -11,25 +11,31 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { planColor } from "../_utils/planColors";
 import { ErrorState } from "../_utils/ErrorState";
+import { PT, fmtDateTimePT, fmtDia, fmtMoney, fmtMonthYear } from "../_utils/format";
+import {
+    Pagina,
+    EncabezadoDePagina,
+    Tarjeta,
+    TarjetaDeNumero,
+    FilaDeNumeros,
+    Cargando,
+    Vacio,
+    Boton,
+    PlanBadge,
+    Aviso,
+    CampoDeBusqueda,
+    usePaginacion,
+    Paginacion,
+    useToast,
+    useConfirmar,
+    ICONO_DESCARGA,
+    NIVELES,
+    nivelLabel,
+    ESTADOS_DE_ALUMNO,
+    TONO_CLASES,
+} from "../_ui";
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-const PT = "America/Los_Angeles";
-const fmtPT = (ts: string | null, fmt = "MM/DD/YYYY h:mm a") =>
-    ts ? dayjs.utc(ts).tz(PT).format(fmt) : "—";
-
-const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-function formatMonth(key: string) {
-    const [year, month] = key.split("-");
-    return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
-}
-
-
-const STATUS_STYLES: Record<string, string> = {
-    active: "bg-emerald-100 text-emerald-700",
-    inactive: "bg-gray-100 text-gray-500",
-    cancelled: "bg-red-100 text-red-600",
-};
 
 interface User {
     id: number;
@@ -56,17 +62,21 @@ interface DashboardData {
 }
 
 const PAGE_SIZE = 15;
-const STATUSES = ["active", "inactive", "cancelled"];
+const ESTADOS = Object.keys(ESTADOS_DE_ALUMNO);
+const ORDEN_DE_NIVELES: string[] = NIVELES.map((n) => n.value);
+const etiquetaDeEstado = (s: string) => ESTADOS_DE_ALUMNO[s]?.label ?? s;
 
-const LEVEL_LABEL: Record<string, string> = {
-    "Principiante":               "Principiante · A1",
-    "Basico":                     "Básico · A2",
-    "Intermedio":                 "Intermedio · B1",
-    "Intermedio alto":            "Intermedio alto · B2",
-    "Intermedio alto-gramatica":  "Intermedio alto · B2.1",
-    "Intermedio alto-produccion": "Intermedio alto · B2.2",
-};
-const LEVEL_ORDER = ["Principiante", "Basico", "Intermedio", "Intermedio alto", "Intermedio alto-gramatica", "Intermedio alto-produccion"];
+/** Ordena niveles como se estudian; los desconocidos, al final. */
+function compararNiveles(a: string, b: string) {
+    const ai = ORDEN_DE_NIVELES.indexOf(a), bi = ORDEN_DE_NIVELES.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return 0;
+}
+
+const SELECT = "p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-falu-red-200 bg-white";
+const FILTROS_VACIOS = { country: "", status: "", plan: "", level: "", inscriptionDate: "", paymentDateFrom: "", paymentDateTo: "" };
 
 function CopyEmail({ email }: { email: string }) {
     const [copied, setCopied] = useState(false);
@@ -87,31 +97,35 @@ function CopyEmail({ email }: { email: string }) {
     );
 }
 
-function StatCard({ label, value, sub, icon, accent = "text-falu-red-600", bg = "bg-falu-red-50" }: {
-    label: string; value: string | number; sub?: string;
-    icon: React.ReactNode; accent?: string; bg?: string;
+/** Selector de estado del alumno, coloreado con el tono de su estado. */
+function SelectorDeEstado({ valor, deshabilitado, onCambio, className = "" }: {
+    valor: string; deshabilitado: boolean; onCambio: (v: string) => void; className?: string;
 }) {
+    const tono = ESTADOS_DE_ALUMNO[valor]?.tono ?? "gris";
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 flex items-start gap-3 sm:gap-4 hover:shadow-md transition-shadow">
-            <div className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${bg} flex items-center justify-center ${accent}`}>{icon}</div>
-            <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-tight">{label}</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 truncate">{value}</p>
-                {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-            </div>
-        </div>
+        <select
+            value={valor}
+            disabled={deshabilitado}
+            onChange={(e) => onCambio(e.target.value)}
+            aria-label="Estado del alumno"
+            className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-falu-red-200 disabled:opacity-50 disabled:cursor-wait ${TONO_CLASES[tono].chip} ${className}`}
+        >
+            {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaDeEstado(s)}</option>)}
+        </select>
     );
 }
 
 export default function Dashboard() {
     const [data, setData] = useState<DashboardData | null>(null);
-    const [filters, setFilters] = useState({ country: "", status: "", plan: "", level: "", inscriptionDate: "", paymentDateFrom: "", paymentDateTo: "" });
+    const [filters, setFilters] = useState(FILTROS_VACIOS);
     const [search, setSearch] = useState("");
     const [sortBy, setSortBy] = useState<"last_payment_date" | "id">("last_payment_date");
     const [showAtRisk, setShowAtRisk] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [guardando, setGuardando] = useState<Set<number>>(() => new Set());
     const router = useRouter();
+    const toast = useToast();
+    const confirmar = useConfirmar();
 
     const load = useCallback(async () => {
         setLoadError(null);
@@ -130,55 +144,52 @@ export default function Dashboard() {
 
     useEffect(() => { load(); }, [load]);
 
-    useEffect(() => { setCurrentPage(1); }, [filters, search, showAtRisk]);
-
-    const handleStatusChange = async (userId: number, newStatus: string) => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/users/${userId}/status`, {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ status: newStatus }),
-        });
+    const ponerEstado = (userId: number, status: string) =>
         setData((prev) => prev ? {
             ...prev,
-            users: prev.users.map((u) => u.id === userId ? { ...u, status: newStatus } : u),
+            users: prev.users.map((u) => u.id === userId ? { ...u, status } : u),
         } : prev);
+
+    const handleStatusChange = async (user: User, newStatus: string) => {
+        const anterior = user.status;
+        if (newStatus === anterior) return;
+        const ok = await confirmar({
+            titulo: `¿Cambiar el estado de ${user.full_name || user.email}?`,
+            mensaje: <>{etiquetaDeEstado(anterior)} → <strong>{etiquetaDeEstado(newStatus)}</strong></>,
+            confirmar: "Cambiar estado",
+            peligro: newStatus === "cancelled",
+        });
+        if (!ok) return;
+
+        ponerEstado(user.id, newStatus);
+        setGuardando((s) => new Set(s).add(user.id));
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/users/${user.id}/status`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
+            toast.exito(`${user.full_name || user.email}: ${etiquetaDeEstado(newStatus)}`);
+        } catch (e) {
+            ponerEstado(user.id, anterior);
+            toast.error(`No se pudo cambiar el estado. ${e instanceof Error ? e.message : "Error de red"}`);
+        } finally {
+            setGuardando((s) => { const n = new Set(s); n.delete(user.id); return n; });
+        }
     };
 
-    const handleExportExcel = () => {
-        if (!data) return;
-        const rows = sortedUsers.map((u) => ({
-            ID: u.id, Email: u.email, Nombre: u.full_name,
-            "Fecha de Inicio": u.inscription_date ? dayjs.utc(u.inscription_date).format("MM/DD/YYYY") : "N/A",
-            País: u.country, Plan: u.plan, Nivel: u.level, Motivo: u.motive, Estado: u.status,
-            "Último Pago (PT)": fmtPT(u.last_payment_date),
-        }));
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
-        saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })], { type: "application/octet-stream" }), "usuarios.xlsx");
-    };
+    // Todo lo derivado se calcula antes de los retornos tempranos: la paginación es un hook.
+    const users = data?.users ?? [];
 
-    if (loadError) return <ErrorState message={loadError} onRetry={load} />;
-
-    if (!data) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
-
-    const atRiskUsers = data.users.filter((u) =>
+    const atRiskUsers = users.filter((u) =>
         u.status === "active" && (!u.last_payment_date || dayjs().diff(dayjs.utc(u.last_payment_date), "day") > 30)
     );
+    const atRiskIds = new Set(atRiskUsers.map((u) => u.id));
 
-    const filteredUsers = data.users.filter((u) => {
+    const filteredUsers = users.filter((u) => {
         if (filters.country && u.country !== filters.country) return false;
         if (filters.status && u.status !== filters.status) return false;
         if (filters.plan && u.plan !== filters.plan) return false;
@@ -186,7 +197,7 @@ export default function Dashboard() {
         if (filters.inscriptionDate && !u.inscription_date?.startsWith(filters.inscriptionDate)) return false;
         if (filters.paymentDateFrom && (!u.last_payment_date || dayjs.utc(u.last_payment_date).tz(PT).format("YYYY-MM-DD") < filters.paymentDateFrom)) return false;
         if (filters.paymentDateTo && (!u.last_payment_date || dayjs.utc(u.last_payment_date).tz(PT).format("YYYY-MM-DD") > filters.paymentDateTo)) return false;
-        if (showAtRisk && !atRiskUsers.find((r) => r.id === u.id)) return false;
+        if (showAtRisk && !atRiskIds.has(u.id)) return false;
         if (search) {
             const q = search.toLowerCase();
             if (!u.full_name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
@@ -203,89 +214,108 @@ export default function Dashboard() {
         return b.last_payment_date.localeCompare(a.last_payment_date);
     });
 
-    const totalPages = Math.ceil(sortedUsers.length / PAGE_SIZE);
-    const paginatedUsers = sortedUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-    const countries = Array.from(new Set(data.users.map((u) => u.country)));
-    const statuses = Array.from(new Set(data.users.map((u) => u.status)));
+    const { pagina, setPagina, totalPaginas, visibles: paginatedUsers, total } = usePaginacion(
+        sortedUsers,
+        PAGE_SIZE,
+        JSON.stringify({ filters, search, showAtRisk, sortBy }),
+    );
+
+    const handleExportExcel = () => {
+        if (!data) return;
+        const rows = sortedUsers.map((u) => ({
+            ID: u.id, Email: u.email, Nombre: u.full_name,
+            "Fecha de Inicio": u.inscription_date ? dayjs.utc(u.inscription_date).format("MM/DD/YYYY") : "N/A",
+            País: u.country, Plan: u.plan, Nivel: u.level, Motivo: u.motive, Estado: u.status,
+            "Último Pago (PT)": u.last_payment_date ? dayjs.utc(u.last_payment_date).tz(PT).format("MM/DD/YYYY h:mm a") : "—",
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
+        saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })], { type: "application/octet-stream" }), "usuarios.xlsx");
+    };
+
+    if (loadError) return <ErrorState message={loadError} onRetry={load} />;
+    if (!data) return <Cargando />;
+
+    const countries = Array.from(new Set(users.map((u) => u.country)));
+    const statuses = Array.from(new Set(users.map((u) => u.status)));
     const inscriptionDates = Array.from(
-        new Set(data.users.map((u) => u.inscription_date).filter(Boolean))
+        new Set(users.map((u) => u.inscription_date).filter(Boolean))
     ).sort() as string[];
-    const levels = Array.from(new Set(data.users.map((u) => u.level).filter(Boolean)))
-        .sort((a, b) => {
-            const ai = LEVEL_ORDER.indexOf(a), bi = LEVEL_ORDER.indexOf(b);
-            if (ai !== -1 && bi !== -1) return ai - bi;
-            if (ai !== -1) return -1;
-            if (bi !== -1) return 1;
-            return a.localeCompare(b);
-        }) as string[];
+    const levels = (Array.from(new Set(users.map((u) => u.level).filter(Boolean))) as string[])
+        .sort((a, b) => compararNiveles(a, b) || a.localeCompare(b));
 
     const monthlyRows = Object.entries(data.revenueByMonth ?? {}).sort((a, b) => b[0].localeCompare(a[0]));
     const planRows = Object.entries(data.paymentsByPlan ?? {}).sort((a, b) => b[1].count - a[1].count);
     const maxPlanCount = planRows[0]?.[1]?.count ?? 1;
 
-    const displayUsers = filteredUsers.length;
     const ticketPromedio = data.totalPayments > 0 ? data.totalRevenue / data.totalPayments : 0;
     const hasActiveFilters = Object.values(filters).some(Boolean) || !!search || showAtRisk;
 
+    // Distribución por nivel
+    const levelMap: Record<string, Record<string, number>> = {};
+    for (const u of users) {
+        const lvl = u.level || "Sin nivel";
+        const plan = u.plan || "Sin plan";
+        if (!levelMap[lvl]) levelMap[lvl] = {};
+        levelMap[lvl][plan] = (levelMap[lvl][plan] ?? 0) + 1;
+    }
+    const levelRows = Object.entries(levelMap)
+        .map(([level, plans]) => ({ level, total: Object.values(plans).reduce((a, b) => a + b, 0), plans }))
+        .sort((a, b) => compararNiveles(a.level, b.level) || b.total - a.total);
+    const maxLevelTotal = levelRows[0]?.total ?? 1;
+
+    const desde = total === 0 ? 0 : (pagina - 1) * PAGE_SIZE + 1;
+    const hasta = Math.min(pagina * PAGE_SIZE, total);
 
     return (
-        <div className="p-4 md:p-8 max-w-screen-xl mx-auto">
-            {/* Header */}
-            <div className="mb-7">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Pagos</h1>
-                <p className="text-sm text-gray-400 mt-1">Resumen de pagos recibidos</p>
-            </div>
+        <Pagina>
+            <EncabezadoDePagina
+                titulo="Pagos"
+                descripcion="Resumen de pagos recibidos"
+                acciones={<Boton variante="secundario" icono={ICONO_DESCARGA} onClick={handleExportExcel}>Excel</Boton>}
+            />
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-                <StatCard label="Total usuarios" value={displayUsers}
-                    sub={hasActiveFilters ? "filtrado" : undefined}
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+            <FilaDeNumeros columnas={4}>
+                <TarjetaDeNumero etiqueta="Total usuarios" valor={filteredUsers.length}
+                    detalle={hasActiveFilters ? "filtrado" : undefined}
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                 />
-                <StatCard label="Total pagos" value={data.totalPayments}
-                    sub="histórico"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
+                <TarjetaDeNumero etiqueta="Total pagos" valor={data.totalPayments}
+                    detalle="histórico"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
                 />
-                <StatCard label="Total revenue" value={`$${(data.totalRevenue / 100).toFixed(2)}`}
-                    sub="histórico"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
+                <TarjetaDeNumero etiqueta="Total revenue" valor={fmtMoney(data.totalRevenue)}
+                    detalle="histórico" acento="verde"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
                 />
-                <StatCard label="Ticket promedio" value={`$${(ticketPromedio / 100).toFixed(2)}`}
-                    sub="por pago"
-                    bg="bg-violet-50" accent="text-violet-600"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+                <TarjetaDeNumero etiqueta="Ticket promedio" valor={fmtMoney(ticketPromedio)}
+                    detalle="por pago" acento="violeta"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
                 />
-            </div>
+            </FilaDeNumeros>
 
-            {/* En riesgo banner */}
+            {/* En riesgo */}
             {atRiskUsers.length > 0 && (
-                <button
-                    onClick={() => setShowAtRisk((v) => !v)}
-                    className={`w-full mb-5 flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all ${
-                        showAtRisk
-                            ? "bg-amber-50 border-amber-300 text-amber-800"
-                            : "bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-300"
-                    }`}
-                >
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                    </svg>
-                    <div className="flex-1">
-                        <span className="text-sm font-semibold">{atRiskUsers.length} usuario{atRiskUsers.length > 1 ? "s" : ""} activo{atRiskUsers.length > 1 ? "s" : ""} sin pago en más de 30 días</span>
-                        <span className="text-xs ml-2 opacity-70">{showAtRisk ? "Clic para ver todos" : "Clic para filtrar"}</span>
-                    </div>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${showAtRisk ? "bg-amber-200 text-amber-800" : "bg-amber-100 text-amber-700"}`}>
-                        {showAtRisk ? "Viendo en riesgo" : "Ver en riesgo"}
-                    </span>
-                </button>
+                <div className="mb-5">
+                    <Aviso
+                        tono="ambar"
+                        titulo={`${atRiskUsers.length} usuario${atRiskUsers.length > 1 ? "s" : ""} activo${atRiskUsers.length > 1 ? "s" : ""} sin pago en más de 30 días`}
+                        accion={
+                            <Boton variante="secundario" tamano="sm" onClick={() => setShowAtRisk((v) => !v)} aria-pressed={showAtRisk}>
+                                {showAtRisk ? "Ver todos" : "Ver en riesgo"}
+                            </Boton>
+                        }
+                    >
+                        {showAtRisk ? "Mostrando solo los usuarios en riesgo." : "Se marcan en ámbar en la tabla."}
+                    </Aviso>
+                </div>
             )}
 
             {/* Plan breakdown + Monthly revenue */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-7">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
                 {planRows.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-1">Pagos por plan</h3>
-                        <p className="text-xs text-gray-400 mb-4">Basado en el plan registrado en cada pago</p>
+                    <Tarjeta titulo="Pagos por plan" descripcion="Basado en el plan registrado en cada pago">
                         <div className="flex flex-col gap-4">
                             {planRows.map(([plan, stats]) => {
                                 const pctCount = Math.round((stats.count / maxPlanCount) * 100);
@@ -293,14 +323,11 @@ export default function Dashboard() {
                                 return (
                                     <div key={plan}>
                                         <div className="flex items-center justify-between mb-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${planColor(plan)}`} />
-                                                <span className="text-sm font-medium text-gray-700">{plan}</span>
-                                            </div>
+                                            <PlanBadge plan={plan} />
                                             <div className="flex items-center gap-3 text-xs">
                                                 <span className="font-semibold text-gray-700">{stats.count} pagos</span>
-                                                <span className="text-gray-500 font-medium">${(stats.amount / 100).toFixed(0)}</span>
-                                                <span className={`px-1.5 py-0.5 rounded-md font-semibold ${planColor(plan)} bg-opacity-10 text-gray-600`}>{revenuePct}%</span>
+                                                <span className="text-gray-500 font-medium">{fmtMoney(stats.amount, 0)}</span>
+                                                <span className="px-1.5 py-0.5 rounded-md font-semibold bg-gray-100 text-gray-600">{revenuePct}%</span>
                                             </div>
                                         </div>
                                         <div className="w-full bg-gray-100 rounded-full h-2">
@@ -312,39 +339,32 @@ export default function Dashboard() {
                         </div>
                         <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
                             <span className="text-xs text-gray-400">Revenue total histórico</span>
-                            <span className="text-sm font-bold text-gray-700">${(data.totalRevenue / 100).toFixed(2)}</span>
+                            <span className="text-sm font-bold text-gray-700">{fmtMoney(data.totalRevenue)}</span>
                         </div>
-                    </div>
+                    </Tarjeta>
                 )}
 
                 {monthlyRows.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="px-5 py-4 border-b border-gray-50">
-                            <h3 className="text-sm font-semibold text-gray-700">Revenue por mes</h3>
-                            <p className="text-xs text-gray-400 mt-0.5">Desglose por plan registrado en cada pago</p>
-                        </div>
+                    <Tarjeta titulo="Revenue por mes" descripcion="Desglose por plan registrado en cada pago" sinRelleno>
                         <div className="overflow-auto max-h-80">
                             <table className="min-w-full">
                                 <thead className="sticky top-0 bg-gray-50">
                                     <tr>
-                                        <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Mes</th>
-                                        <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Pagos</th>
-                                        <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Revenue</th>
-                                        <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">vs ant.</th>
-                                        <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Por plan</th>
+                                        {["Mes", "Pagos", "Revenue", "vs ant.", "Por plan"].map((h) => (
+                                            <th key={h} className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{h}</th>
+                                        ))}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {monthlyRows.map(([month, stats], i) => {
                                         const prev = monthlyRows[i + 1]?.[1]?.amount;
                                         const change = prev && prev > 0 ? ((stats.amount - prev) / prev) * 100 : null;
-                                        const byPlan = stats.byPlan ?? {};
-                                        const planEntries = Object.entries(byPlan).sort((a, b) => b[1].amount - a[1].amount);
+                                        const planEntries = Object.entries(stats.byPlan ?? {}).sort((a, b) => b[1].amount - a[1].amount);
                                         return (
                                             <tr key={month} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-5 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">{formatMonth(month)}</td>
+                                                <td className="px-5 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">{fmtMonthYear(month)}</td>
                                                 <td className="px-5 py-3 text-sm text-gray-500">{stats.count}</td>
-                                                <td className="px-5 py-3 text-sm font-semibold text-gray-800">${(stats.amount / 100).toFixed(2)}</td>
+                                                <td className="px-5 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">{fmtMoney(stats.amount)}</td>
                                                 <td className="px-5 py-3">
                                                     {change !== null ? (
                                                         <span className={`text-xs font-semibold ${change >= 0 ? "text-emerald-600" : "text-red-500"}`}>
@@ -370,293 +390,199 @@ export default function Dashboard() {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </Tarjeta>
                 )}
             </div>
 
-            {/* Level distribution */}
-            {(() => {
-                const levelMap: Record<string, Record<string, number>> = {};
-                for (const u of data.users) {
-                    const lvl = u.level || "Sin nivel";
-                    const plan = u.plan || "Sin plan";
-                    if (!levelMap[lvl]) levelMap[lvl] = {};
-                    levelMap[lvl][plan] = (levelMap[lvl][plan] ?? 0) + 1;
-                }
-                const levels = Object.entries(levelMap)
-                    .map(([level, plans]) => ({ level, total: Object.values(plans).reduce((a, b) => a + b, 0), plans }))
-                    .sort((a, b) => {
-                        const ai = LEVEL_ORDER.indexOf(a.level), bi = LEVEL_ORDER.indexOf(b.level);
-                        if (ai !== -1 && bi !== -1) return ai - bi;
-                        if (ai !== -1) return -1;
-                        if (bi !== -1) return 1;
-                        return b.total - a.total;
-                    });
-                const maxTotal = levels[0]?.total ?? 1;
-                if (levels.length === 0) return null;
-                return (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-7">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-4">Distribución por nivel</h3>
-                        <div className="flex flex-col gap-3.5">
-                            {levels.map(({ level, total, plans }) => (
-                                <div key={level}>
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-sm font-medium text-gray-700 w-48 flex-shrink-0">
-                                            {LEVEL_LABEL[level] ?? level}
-                                        </span>
-                                        <div className="flex items-center gap-2 flex-1 mx-3">
-                                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full bg-gradient-to-r from-falu-red-500 to-yellow-orange-400 transition-all duration-500"
-                                                    style={{ width: `${Math.round((total / maxTotal) * 100)}%` }}
-                                                />
-                                            </div>
+            {/* Distribución por nivel */}
+            {levelRows.length > 0 && (
+                <Tarjeta titulo="Distribución por nivel" className="mb-6">
+                    <div className="flex flex-col gap-3.5">
+                        {levelRows.map(({ level, total: totalNivel, plans }) => (
+                            <div key={level}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-sm font-medium text-gray-700 w-48 flex-shrink-0">{nivelLabel(level)}</span>
+                                    <div className="flex items-center gap-2 flex-1 mx-3">
+                                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-falu-red-500 to-yellow-orange-400 transition-all duration-500"
+                                                style={{ width: `${Math.round((totalNivel / maxLevelTotal) * 100)}%` }}
+                                            />
                                         </div>
-                                        <span className="text-sm font-semibold text-gray-700 w-6 text-right">{total}</span>
                                     </div>
-                                    <div className="ml-20 flex flex-wrap gap-1.5">
-                                        {Object.entries(plans).sort((a,b) => b[1]-a[1]).map(([plan, count]) => (
-                                            <span key={plan} className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-                                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${planColor(plan)}`} />
-                                                {plan} · {count}
-                                            </span>
-                                        ))}
-                                    </div>
+                                    <span className="text-sm font-semibold text-gray-700 w-6 text-right">{totalNivel}</span>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="ml-20 flex flex-wrap gap-1.5">
+                                    {Object.entries(plans).sort((a, b) => b[1] - a[1]).map(([plan, count]) => (
+                                        <span key={plan} className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
+                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${planColor(plan)}`} />
+                                            {plan} · {count}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                );
-            })()}
+                </Tarjeta>
+            )}
 
-            {/* Filters */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
-                {/* Search */}
-                <div className="relative mb-3">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-                    </svg>
-                    <input
-                        type="text"
-                        placeholder="Buscar por nombre o email…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                    />
+            {/* Filtros */}
+            <Tarjeta className="mb-5">
+                <div className="mb-3 flex">
+                    <CampoDeBusqueda valor={search} onCambio={setSearch} />
                 </div>
                 <div className="flex flex-wrap gap-3 items-end w-full">
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">País</label>
-                        <select className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={filters.country} onChange={(e) => setFilters({ ...filters, country: e.target.value })}>
+                        <select className={SELECT} value={filters.country} onChange={(e) => setFilters({ ...filters, country: e.target.value })}>
                             <option value="">Todos</option>
                             {countries.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">Estado</label>
-                        <select className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                        <select className={SELECT} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
                             <option value="">Todos</option>
-                            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                            {statuses.map((s) => <option key={s} value={s}>{etiquetaDeEstado(s)}</option>)}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">Plan</label>
-                        <select className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={filters.plan} onChange={(e) => setFilters({ ...filters, plan: e.target.value })}>
+                        <select className={SELECT} value={filters.plan} onChange={(e) => setFilters({ ...filters, plan: e.target.value })}>
                             <option value="">Todos</option>
-                            {Array.from(new Set(data.users.map((u) => u.plan))).sort().map((p) => (
+                            {Array.from(new Set(users.map((u) => u.plan))).sort().map((p) => (
                                 <option key={p} value={p}>{p}</option>
                             ))}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">Nivel</label>
-                        <select className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={filters.level} onChange={(e) => setFilters({ ...filters, level: e.target.value })}>
+                        <select className={SELECT} value={filters.level} onChange={(e) => setFilters({ ...filters, level: e.target.value })}>
                             <option value="">Todos</option>
-                            {levels.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l] ?? l}</option>)}
+                            {levels.map((l) => <option key={l} value={l}>{nivelLabel(l)}</option>)}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">Fecha de inicio</label>
-                        <select className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={filters.inscriptionDate} onChange={(e) => setFilters({ ...filters, inscriptionDate: e.target.value })}>
+                        <select className={SELECT} value={filters.inscriptionDate} onChange={(e) => setFilters({ ...filters, inscriptionDate: e.target.value })}>
                             <option value="">Todas</option>
                             {inscriptionDates.map((d) => (
-                                <option key={d} value={d}>{dayjs.utc(d).format("MM/DD/YYYY")}</option>
+                                <option key={d} value={d}>{fmtDia(d)}</option>
                             ))}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">
                         <label className="text-xs text-gray-400 font-medium">Pagos desde</label>
-                        <input type="date" className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50 max-w-full"
+                        <input type="date" className={`${SELECT} max-w-full`}
                             value={filters.paymentDateFrom} onChange={(e) => setFilters({ ...filters, paymentDateFrom: e.target.value })} />
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">
                         <label className="text-xs text-gray-400 font-medium">Pagos hasta</label>
-                        <input type="date" className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50 max-w-full"
+                        <input type="date" className={`${SELECT} max-w-full`}
                             value={filters.paymentDateTo} onChange={(e) => setFilters({ ...filters, paymentDateTo: e.target.value })} />
                     </div>
-                    {hasActiveFilters && (
-                        <button onClick={() => { setFilters({ country: "", status: "", plan: "", level: "", inscriptionDate: "", paymentDateFrom: "", paymentDateTo: "" }); setSearch(""); setShowAtRisk(false); }}
-                            className="px-3 py-2 text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
-                            Limpiar
-                        </button>
-                    )}
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-400 font-medium">Ordenar por</label>
-                        <select
-                            className="p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 bg-gray-50"
-                            value={sortBy}
-                            onChange={(e) => { setSortBy(e.target.value as "last_payment_date" | "id"); setCurrentPage(1); }}
-                        >
+                        <select className={SELECT} value={sortBy} onChange={(e) => setSortBy(e.target.value as "last_payment_date" | "id")}>
                             <option value="last_payment_date">Último pago</option>
                             <option value="id">ID usuario</option>
                         </select>
                     </div>
-                    <div className="ml-auto">
-                        <button onClick={handleExportExcel}
-                            className="flex items-center gap-2 bg-yellow-orange-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-orange-600 transition shadow-sm text-sm font-medium">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Excel
-                        </button>
-                    </div>
+                    {hasActiveFilters && (
+                        <Boton variante="fantasma" tamano="sm" onClick={() => { setFilters(FILTROS_VACIOS); setSearch(""); setShowAtRisk(false); }}>
+                            Limpiar filtros
+                        </Boton>
+                    )}
                 </div>
-            </div>
+            </Tarjeta>
 
             <p className="text-xs text-gray-400 mb-3 px-1">
-                {sortedUsers.length === 0 ? "Sin registros" : (
-                    <><strong className="text-gray-600">{(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sortedUsers.length)}</strong> de <strong className="text-gray-600">{sortedUsers.length}</strong> registros</>
+                {total === 0 ? "Sin registros" : (
+                    <><strong className="text-gray-600">{desde}–{hasta}</strong> de <strong className="text-gray-600">{total}</strong> registros</>
                 )}
             </p>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                {["#", "Email", "Nombre", "Fecha inicio", "País", "Plan", "Estado", "Último pago", "Nivel", "Gestionar"].map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {paginatedUsers.length === 0 ? (
-                                <tr><td colSpan={10} className="text-center py-12 text-gray-300 text-sm">Sin registros</td></tr>
-                            ) : paginatedUsers.map((u) => {
-                                const isAtRisk = atRiskUsers.some((r) => r.id === u.id);
-                                return (
-                                    <tr key={u.id} className={`transition-colors ${isAtRisk ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"}`}>
-                                        <td className="px-4 py-3 text-xs text-gray-400">{u.id}</td>
-                                        <td className="px-4 py-3"><CopyEmail email={u.email} /></td>
-                                        <td className="px-4 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">
-                                            {isAtRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 mb-0.5" />}
-                                            {u.full_name}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                                            {u.inscription_date ? dayjs.utc(u.inscription_date).format("MM/DD/YYYY") : "—"}
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-gray-600">{u.country}</td>
-                                        <td className="px-4 py-3">
-                                            <span className="flex items-center gap-1.5 text-sm text-gray-700">
-                                                <span className={`w-2 h-2 rounded-full ${planColor(u.plan)}`} />
-                                                {u.plan}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <select
-                                                value={u.status}
-                                                onChange={(e) => handleStatusChange(u.id, e.target.value)}
-                                                className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-yellow-orange-300 ${STATUS_STYLES[u.status] ?? "bg-gray-100 text-gray-500"}`}
-                                            >
-                                                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                                            {fmtPT(u.last_payment_date)}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-400">{u.level}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap">
-                                            <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver detalle →</Link>
-                                        </td>
+            <Tarjeta sinRelleno>
+                {paginatedUsers.length === 0 ? (
+                    <Vacio>Sin registros</Vacio>
+                ) : (
+                    <>
+                        {/* Escritorio */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-100">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        {["#", "Email", "Nombre", "Fecha inicio", "País", "Plan", "Estado", "Último pago", "Nivel", "Gestionar"].map((h) => (
+                                            <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                        ))}
                                     </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {paginatedUsers.map((u) => {
+                                        const isAtRisk = atRiskIds.has(u.id);
+                                        return (
+                                            <tr key={u.id} className={`transition-colors ${isAtRisk ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"}`}>
+                                                <td className="px-4 py-3 text-xs text-gray-400">{u.id}</td>
+                                                <td className="px-4 py-3"><CopyEmail email={u.email} /></td>
+                                                <td className="px-4 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">
+                                                    {isAtRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 mb-0.5" title="Sin pago en más de 30 días" />}
+                                                    {u.full_name}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDia(u.inscription_date)}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">{u.country}</td>
+                                                <td className="px-4 py-3"><PlanBadge plan={u.plan} /></td>
+                                                <td className="px-4 py-3">
+                                                    <SelectorDeEstado valor={u.status} deshabilitado={guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} />
+                                                </td>
+                                                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTimePT(u.last_payment_date)}</td>
+                                                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{nivelLabel(u.level)}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver detalle →</Link>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Móvil */}
+                        <div className="md:hidden flex flex-col gap-3 p-3">
+                            {paginatedUsers.map((u) => {
+                                const isAtRisk = atRiskIds.has(u.id);
+                                return (
+                                    <div key={u.id} className={`rounded-2xl border p-4 ${isAtRisk ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-gray-800">
+                                                    {isAtRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 mb-0.5" />}
+                                                    {u.full_name}
+                                                </p>
+                                                <CopyEmail email={u.email} />
+                                            </div>
+                                            <SelectorDeEstado valor={u.status} deshabilitado={guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} className="flex-shrink-0" />
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                            <PlanBadge plan={u.plan} />
+                                            <span className="text-xs text-gray-600 bg-white px-2 py-1 rounded-lg border border-gray-100">{u.country}</span>
+                                            {u.level && <span className="text-xs text-gray-600 bg-white px-2 py-1 rounded-lg border border-gray-100">{nivelLabel(u.level)}</span>}
+                                            {u.last_payment_date && (
+                                                <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded-lg border border-gray-100">
+                                                    Pago: {fmtDateTimePT(u.last_payment_date)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="mt-3 pt-2 border-t border-gray-100">
+                                            <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver detalle →</Link>
+                                        </div>
+                                    </div>
                                 );
                             })}
-                        </tbody>
-                    </table>
-                </div>
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
-                        <p className="text-xs text-gray-400">Pág. <strong className="text-gray-600">{currentPage}</strong> / <strong className="text-gray-600">{totalPages}</strong></p>
-                        <div className="flex gap-2">
-                            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-white transition">← Ant.</button>
-                            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-white transition">Sig. →</button>
                         </div>
-                    </div>
+                    </>
                 )}
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden flex flex-col gap-3">
-                {paginatedUsers.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-8 text-center text-gray-300 text-sm border border-gray-100">Sin registros</div>
-                ) : paginatedUsers.map((u) => {
-                    const isAtRisk = atRiskUsers.some((r) => r.id === u.id);
-                    return (
-                        <div key={u.id} className={`rounded-2xl shadow-sm border p-4 ${isAtRisk ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-800">
-                                        {isAtRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 mb-0.5" />}
-                                        {u.full_name}
-                                    </p>
-                                    <CopyEmail email={u.email} />
-                                </div>
-                                <select
-                                    value={u.status}
-                                    onChange={(e) => handleStatusChange(u.id, e.target.value)}
-                                    className={`flex-shrink-0 text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none ${STATUS_STYLES[u.status] ?? "bg-gray-100 text-gray-500"}`}
-                                >
-                                    {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                <span className="flex items-center gap-1 text-xs text-gray-600 bg-white px-2 py-1 rounded-lg border border-gray-100">
-                                    <span className={`w-2 h-2 rounded-full ${planColor(u.plan)}`} />
-                                    {u.plan}
-                                </span>
-                                <span className="text-xs text-gray-600 bg-white px-2 py-1 rounded-lg border border-gray-100">{u.country}</span>
-                                {u.last_payment_date && (
-                                    <span className="text-xs text-gray-400 bg-white px-2 py-1 rounded-lg border border-gray-100">
-                                        Pago: {fmtPT(u.last_payment_date, "MM/DD/YY h:mm a")}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="mt-3 pt-2 border-t border-gray-100">
-                                <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver detalle →</Link>
-                            </div>
-                        </div>
-                    );
-                })}
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center py-2 px-1">
-                        <p className="text-xs text-gray-400">Pág. {currentPage} / {totalPages}</p>
-                        <div className="flex gap-2">
-                            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-30 bg-white hover:bg-gray-50 transition">← Ant.</button>
-                            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-30 bg-white hover:bg-gray-50 transition">Sig. →</button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+                <Paginacion pagina={pagina} totalPaginas={totalPaginas} setPagina={setPagina} total={total} />
+            </Tarjeta>
+        </Pagina>
     );
 }

@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
-import { useEscapeKey } from "../_utils/useEscapeKey";
 import { ErrorState } from "../_utils/ErrorState";
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-const PT = "America/Los_Angeles";
+import { fmtDatePT } from "../_utils/format";
+import {
+    Pagina,
+    EncabezadoDePagina,
+    Tarjeta,
+    Cargando,
+    Vacio,
+    Chip,
+    Boton,
+    Aviso,
+    CampoDeBusqueda,
+    Pildoras,
+    useConfirmar,
+} from "../_ui";
 
 interface Lead {
     id: string;
@@ -63,8 +69,11 @@ const FILTERS: { key: FilterKey; label: string; hint: string }[] = [
     { key: "todos", label: "Todos", hint: "Todos los leads" },
 ];
 
+const CLASE_CAMPO = "w-full px-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-falu-red-200 focus:border-falu-red-300";
+
 export default function CorreosMasivos() {
     const router = useRouter();
+    const confirmar = useConfirmar();
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -76,7 +85,6 @@ export default function CorreosMasivos() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
 
     const [starting, setStarting] = useState(false);
-    const [confirmOpen, setConfirmOpen] = useState(false);
     const [campana, setCampana] = useState<Campana | null>(null);
     const [error, setError] = useState<string | null>(null);
     // Mientras haya una campaña enviándose no se puede lanzar otra.
@@ -91,9 +99,6 @@ export default function CorreosMasivos() {
             setRecienLanzada(null);
         }
     }, [recienLanzada, campana]);
-
-    // Cerrar el modal de confirmación con Esc (además del click-fuera existente).
-    useEscapeKey(confirmOpen && !sending, () => setConfirmOpen(false));
 
     const load = useCallback(async () => {
         setLoadError(null);
@@ -209,7 +214,6 @@ export default function CorreosMasivos() {
     const canSend = subject.trim().length > 0 && body.trim().length > 0 && selected.size > 0 && !sending;
 
     const handleSend = async () => {
-        setConfirmOpen(false);
         setStarting(true);
         setError(null);
         try {
@@ -250,34 +254,50 @@ export default function CorreosMasivos() {
         }
     };
 
+    // Confirmación con el kit: nombra el asunto, cuántos y a quiénes.
+    const pedirConfirmacion = async () => {
+        const n = selected.size;
+        const si = await confirmar({
+            titulo: "Confirmar envío",
+            mensaje: (
+                <>
+                    <p>
+                        Vas a enviar el correo <strong className="text-gray-700">“{subject.trim()}”</strong> a{" "}
+                        <strong className="text-falu-red-700">{n}</strong> lead{n === 1 ? "" : "s"} desde{" "}
+                        <span className="font-medium">loren.lainez@lz-englishacademy.com</span>. Cada uno quedará marcado como contactado.
+                    </p>
+                    <div className="max-h-32 overflow-y-auto rounded-lg bg-gray-50 border border-gray-100 p-3 mt-3 text-xs text-gray-500 space-y-0.5">
+                        {selectedList.slice(0, 50).map((l) => (
+                            <p key={l.id} className="truncate">{l.full_name || l.email} <span className="text-gray-300">· {l.email}</span></p>
+                        ))}
+                        {selectedList.length > 50 && <p className="text-gray-400">…y {selectedList.length - 50} más</p>}
+                    </div>
+                </>
+            ),
+            confirmar: "Sí, enviar",
+        });
+        if (si) handleSend();
+    };
+
     if (loadError) return <ErrorState message={loadError} onRetry={load} />;
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="flex flex-col items-center gap-3 text-gray-400">
-                    <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                    <span className="text-sm">Cargando leads…</span>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <Cargando texto="Cargando leads…" />;
+
+    const filtroActivo = FILTERS.find((f) => f.key === filter);
 
     return (
-        <div className="p-4 md:p-8 max-w-screen-xl mx-auto">
-            {/* Header */}
-            <div className="mb-7">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Correos masivos</h1>
-                <p className="text-sm text-gray-400 mt-1">
-                    Envía un correo a varios leads a la vez. Se envía desde{" "}
-                    <span className="font-medium text-gray-600">loren.lainez@lz-englishacademy.com</span>.
-                    Cada lead enviado queda marcado como <span className="font-medium text-teal-600">contactado</span>;
-                    aparece como <span className="font-medium text-violet-600">convertido</span> solo si tiene un pago registrado.
-                </p>
-            </div>
+        <Pagina>
+            <EncabezadoDePagina
+                titulo="Correos masivos"
+                descripcion={
+                    <>
+                        Envía un correo a varios leads a la vez. Se envía desde{" "}
+                        <span className="font-medium text-gray-600">loren.lainez@lz-englishacademy.com</span>.
+                        Cada lead enviado queda marcado como <span className="font-medium text-emerald-600">contactado</span>;
+                        aparece como <span className="font-medium text-violet-600">convertido</span> solo si tiene un pago registrado.
+                    </>
+                }
+            />
 
             {/* Progreso / resumen de la campaña */}
             {campana && (() => {
@@ -332,24 +352,22 @@ export default function CorreosMasivos() {
             })()}
 
             {error && (
-                <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-                    {error}
+                <div className="mb-6">
+                    <Aviso tono="rojo">{error}</Aviso>
                 </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* ── Compositor ── */}
                 <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                        <h2 className="text-sm font-semibold text-gray-700 mb-4">Redactar correo</h2>
-
+                    <Tarjeta titulo="Redactar correo">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Asunto</label>
                         <input
                             type="text"
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
                             placeholder="Ej. ¿Lista para empezar tu inglés?"
-                            className="w-full p-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-orange-400"
+                            className={CLASE_CAMPO}
                         />
                         <p className="text-xs text-gray-500 mt-1 mb-4">
                             Es también el <strong>titular</strong> que se ve dentro del correo, y admite{" "}
@@ -362,7 +380,7 @@ export default function CorreosMasivos() {
                             onChange={(e) => setBody(e.target.value)}
                             rows={11}
                             placeholder={"Hola {nombre},\n\nEscribe aquí tu mensaje…\n\nLos enlaces (https://…) se convierten automáticamente."}
-                            className="w-full p-3 border border-gray-200 rounded-lg text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-yellow-orange-400 resize-y"
+                            className={`${CLASE_CAMPO} leading-relaxed resize-y`}
                         />
                         <p className="text-xs text-gray-400 mt-2">
                             Usa <code className="bg-gray-100 px-1 rounded">{"{nombre}"}</code> para insertar el nombre del lead.
@@ -374,7 +392,7 @@ export default function CorreosMasivos() {
                                 <p className="text-xs font-medium text-gray-500 mb-2">
                                     Vista previa <span className="text-gray-400">(con un nombre de ejemplo)</span>
                                 </p>
-                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                                     {/*
                                         El asunto se sustituye AQUÍ TAMBIÉN desde que
                                         vale `{nombre}` en él: enseñándolo crudo, el
@@ -392,10 +410,10 @@ export default function CorreosMasivos() {
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </Tarjeta>
 
                     {/* Selección + envío */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <Tarjeta>
                         <div className="flex items-center justify-between mb-1">
                             <span className="text-sm text-gray-500">Destinatarios seleccionados</span>
                             <span className="text-2xl font-bold text-gray-800">{selected.size}</span>
@@ -403,28 +421,20 @@ export default function CorreosMasivos() {
                         <p className="text-xs text-gray-400 mb-4">
                             Se enviará uno por uno. Puede tardar ~0.5s por correo.
                         </p>
-                        <button
-                            onClick={() => setConfirmOpen(true)}
+                        <Boton
+                            variante="primario"
+                            className="w-full"
+                            onClick={pedirConfirmacion}
                             disabled={!canSend}
-                            className="w-full flex items-center justify-center gap-2 bg-yellow-orange-500 text-white px-4 py-2.5 rounded-lg hover:bg-yellow-orange-600 transition shadow-sm text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                            cargando={sending}
+                            icono={
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                            }
                         >
-                            {sending ? (
-                                <>
-                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                    </svg>
-                                    Enviando…
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                    Enviar a {selected.size} lead{selected.size === 1 ? "" : "s"}
-                                </>
-                            )}
-                        </button>
+                            {sending ? "Enviando…" : `Enviar a ${selected.size} lead${selected.size === 1 ? "" : "s"}`}
+                        </Boton>
                         {!canSend && !sending && (
                             <p className="text-xs text-gray-400 mt-2 text-center">
                                 {selected.size === 0
@@ -432,37 +442,21 @@ export default function CorreosMasivos() {
                                     : "Completa el asunto y el cuerpo"}
                             </p>
                         )}
-                    </div>
+                    </Tarjeta>
                 </div>
 
                 {/* ── Lista de leads ── */}
                 <div className="lg:col-span-3">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <Tarjeta sinRelleno>
                         {/* Toolbar */}
-                        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                            <div className="flex gap-1.5 flex-wrap">
-                                {FILTERS.map((f) => (
-                                    <button
-                                        key={f.key}
-                                        onClick={() => setFilter(f.key)}
-                                        title={f.hint}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                                            filter === f.key
-                                                ? "bg-falu-red-50 text-falu-red-700 ring-1 ring-falu-red-200"
-                                                : "text-gray-500 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        {f.label} <span className="text-gray-400 tabular-nums">({conteo[f.key]})</span>
-                                    </button>
-                                ))}
-                            </div>
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Buscar por nombre o email…"
-                                className="p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-orange-400 w-full sm:w-56"
+                        <div className="p-4 border-b border-gray-100 flex flex-col gap-3">
+                            <Pildoras
+                                opciones={FILTERS.map((f) => ({ valor: f.key, label: f.label, cuenta: conteo[f.key] }))}
+                                valor={filter}
+                                onCambio={setFilter}
                             />
+                            {filtroActivo && <p className="text-xs text-gray-400 -mt-1">{filtroActivo.hint}</p>}
+                            <CampoDeBusqueda valor={search} onCambio={setSearch} placeholder="Buscar por nombre o email…" />
                         </div>
 
                         {/* Select all */}
@@ -477,19 +471,16 @@ export default function CorreosMasivos() {
                                 Seleccionar visibles ({filtered.length})
                             </label>
                             {selected.size > 0 && (
-                                <button
-                                    onClick={() => setSelected(new Set())}
-                                    className="text-xs text-gray-400 hover:text-gray-600 underline"
-                                >
+                                <Boton variante="fantasma" tamano="sm" onClick={() => setSelected(new Set())}>
                                     Limpiar selección
-                                </button>
+                                </Boton>
                             )}
                         </div>
 
                         {/* List */}
                         <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-50">
                             {filtered.length === 0 ? (
-                                <p className="text-center py-12 text-gray-300 text-sm">Sin leads para este filtro.</p>
+                                <Vacio>Sin leads para este filtro.</Vacio>
                             ) : (
                                 filtered.map((l) => {
                                     const isSel = selected.has(l.id);
@@ -512,20 +503,14 @@ export default function CorreosMasivos() {
                                             </div>
                                             <div className="flex items-center gap-1.5 flex-shrink-0">
                                                 {l.converted ? (
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
-                                                        Convertido
-                                                    </span>
+                                                    <Chip tono="violeta">Convertido</Chip>
                                                 ) : l.contacted ? (
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-100 text-teal-700">
-                                                        Contactado
-                                                    </span>
+                                                    <Chip tono="verde">Contactado</Chip>
                                                 ) : (
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-400">
-                                                        Nuevo
-                                                    </span>
+                                                    <Chip tono="gris">Nuevo</Chip>
                                                 )}
-                                                <span className="hidden sm:inline text-[10px] text-gray-300">
-                                                    {dayjs.utc(l.created_at).tz(PT).format("DD/MM/YY")}
+                                                <span className="hidden sm:inline text-xs text-gray-400 whitespace-nowrap">
+                                                    {fmtDatePT(l.created_at)}
                                                 </span>
                                             </div>
                                         </label>
@@ -533,43 +518,9 @@ export default function CorreosMasivos() {
                                 })
                             )}
                         </div>
-                    </div>
+                    </Tarjeta>
                 </div>
             </div>
-
-            {/* Confirmación */}
-            {confirmOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setConfirmOpen(false)}>
-                    <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="font-semibold text-gray-800 text-base mb-2">Confirmar envío</h3>
-                        <p className="text-sm text-gray-500 leading-relaxed mb-4">
-                            Vas a enviar el correo <strong className="text-gray-700">“{subject.trim()}”</strong> a{" "}
-                            <strong className="text-falu-red-700">{selected.size}</strong> lead{selected.size === 1 ? "" : "s"} desde{" "}
-                            <span className="font-medium">loren.lainez@lz-englishacademy.com</span>. Cada uno quedará marcado como contactado.
-                        </p>
-                        <div className="max-h-32 overflow-y-auto rounded-lg bg-gray-50 border border-gray-100 p-3 mb-4 text-xs text-gray-500 space-y-0.5">
-                            {selectedList.slice(0, 50).map((l) => (
-                                <p key={l.id} className="truncate">{l.full_name || l.email} <span className="text-gray-300">· {l.email}</span></p>
-                            ))}
-                            {selectedList.length > 50 && <p className="text-gray-400">…y {selectedList.length - 50} más</p>}
-                        </div>
-                        <div className="flex gap-2 justify-end">
-                            <button
-                                onClick={() => setConfirmOpen(false)}
-                                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 transition"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSend}
-                                className="px-4 py-2 text-sm rounded-lg bg-yellow-orange-500 text-white hover:bg-yellow-orange-600 transition font-semibold shadow-sm"
-                            >
-                                Sí, enviar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+        </Pagina>
     );
 }

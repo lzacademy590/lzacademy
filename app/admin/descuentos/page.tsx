@@ -5,6 +5,8 @@ import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { ErrorState } from "../_utils/ErrorState";
+import { fmtDia } from "../_utils/format";
+import { Pagina, EncabezadoDePagina, Cargando, Chip, Boton, Aviso, useToast, useConfirmar, type Tono } from "../_ui";
 import { planesDeCheckout, planLabel, isSubscriptionPlan, type DiscountPlan } from "@/app/lib/plans";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 
@@ -85,15 +87,15 @@ const sameCode = (a?: DiscountCode, b?: DiscountCode): boolean =>
 
 const today = dayjs().format("YYYY-MM-DD");
 
-function statusOf(c: DiscountCode) {
-    if (!c.active)
-        return { label: "Inactivo", text: "text-gray-500", bg: "bg-gray-100", dot: "bg-gray-400", ring: "ring-gray-200" };
-    if (c.expires_at && c.expires_at < today)
-        return { label: "Expirado", text: "text-red-600", bg: "bg-red-50", dot: "bg-red-400", ring: "ring-red-200" };
-    if (c.max_uses != null && c.uses >= c.max_uses)
-        return { label: "Agotado", text: "text-amber-600", bg: "bg-amber-50", dot: "bg-amber-400", ring: "ring-amber-200" };
-    return { label: "Activo", text: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-400", ring: "ring-emerald-200" };
+function statusOf(c: DiscountCode): { label: string; tono: Tono } {
+    if (!c.active) return { label: "Inactivo", tono: "gris" };
+    if (c.expires_at && c.expires_at < today) return { label: "Expirado", tono: "rojo" };
+    if (c.max_uses != null && c.uses >= c.max_uses) return { label: "Agotado", tono: "ambar" };
+    return { label: "Activo", tono: "verde" };
 }
+
+const ICONO_MAS = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>;
+const ICONO_PAPELERA = <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
 
 const discountSummary = (c: DiscountCode) =>
     c.type === "percent" ? `${c.value}% de descuento` : `$${c.value} de descuento`;
@@ -126,7 +128,8 @@ export default function DescuentosPage() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
-    const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+    const toast = useToast();
+    const confirmar = useConfirmar();
     const router = useRouter();
 
     const load = useCallback(async () => {
@@ -167,15 +170,25 @@ export default function DescuentosPage() {
 
     const activeCount = rows.filter((r) => statusOf(r).label === "Activo").length;
 
-    const showToast = (ok: boolean, msg: string) => {
-        setToast({ ok, msg });
-        setTimeout(() => setToast(null), 3500);
-    };
-
     const update = (id: string, patch: Partial<Row>) =>
         setRows((prev) => prev.map((r) => (r._id === id ? { ...r, ...patch } : r)));
 
     const remove = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id));
+
+    // Un código ya guardado se pide confirmar: deja de valer en el checkout al
+    // guardar. Un borrador nuevo se descarta sin preguntar (aún no existe).
+    const pedirEliminar = async (r: Row) => {
+        if (!r._isNew) {
+            const si = await confirmar({
+                titulo: `¿Eliminar el código ${r.code || "sin nombre"}?`,
+                mensaje: "Dejará de aceptarse en el checkout en cuanto guardes los cambios. Si solo quieres pausarlo, edítalo y márcalo como Inactivo.",
+                confirmar: "Sí, eliminar",
+                peligro: true,
+            });
+            if (!si) return;
+        }
+        remove(r._id);
+    };
 
     const addNew = () =>
         setRows((prev) => [{ ...emptyCode(), _id: uid(), _isNew: true, _editing: true }, ...prev]);
@@ -187,15 +200,15 @@ export default function DescuentosPage() {
         const seen = new Set<string>();
         for (const r of rows) {
             const code = r.code.trim().toUpperCase();
-            if (!code) { showToast(false, "Hay un código vacío."); return; }
-            if (seen.has(code)) { showToast(false, `Código duplicado: ${code}`); return; }
+            if (!code) { toast.error("Hay un código vacío."); return; }
+            if (seen.has(code)) { toast.error(`Código duplicado: ${code}`); return; }
             seen.add(code);
-            if (!(r.value > 0)) { showToast(false, `El valor de ${code} debe ser mayor a 0.`); return; }
-            if (r.type === "percent" && r.value > 100) { showToast(false, `${code}: el porcentaje no puede superar 100.`); return; }
+            if (!(r.value > 0)) { toast.error(`El valor de ${code} debe ser mayor a 0.`); return; }
+            if (r.type === "percent" && r.value > 100) { toast.error(`${code}: el porcentaje no puede superar 100.`); return; }
         }
 
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) { router.push("/admin/login"); return; }
         setSaving(true);
         try {
             const payload = rows.map((r) => ({ ...dataOf(r), code: r.code.trim().toUpperCase() }));
@@ -208,12 +221,14 @@ export default function DescuentosPage() {
                 const newRows = rows.map((r) => ({ ...r, code: r.code.trim().toUpperCase(), _isNew: false, _editing: false }));
                 setRows(newRows);
                 setSaved(newRows.map((r) => ({ _id: r._id, data: dataOf(r) })));
-                showToast(true, "Cambios guardados correctamente.");
+                toast.exito("Cambios guardados correctamente.");
             } else {
-                showToast(false, "Error al guardar.");
+                let detalle = "";
+                try { const d = await res.json(); detalle = d?.error ? `: ${d.error}` : ""; } catch { /* no era JSON */ }
+                toast.error(`No se guardó (error ${res.status})${detalle}.`);
             }
         } catch {
-            showToast(false, "Error al guardar.");
+            toast.error("No se pudo conectar con el servidor. No se guardó nada.");
         } finally {
             setSaving(false);
         }
@@ -221,51 +236,26 @@ export default function DescuentosPage() {
 
     if (loadError) return <ErrorState message={loadError} onRetry={load} />;
 
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
+    if (loading) return <Cargando />;
 
     return (
-        <div className="p-4 md:p-8 max-w-3xl mx-auto pb-28">
-            {toast && (
-                <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg text-sm font-medium ${toast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
-                    {toast.ok
-                        ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>}
-                    {toast.msg}
-                </div>
-            )}
-
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Códigos de descuento</h1>
-                    <p className="text-sm text-gray-400 mt-1">
+        <Pagina ancho="estrecho">
+            <div className="pb-28">
+            <EncabezadoDePagina
+                titulo="Códigos de descuento"
+                descripcion={
+                    <>
                         {rows.length} {rows.length === 1 ? "código" : "códigos"}
                         {rows.length > 0 && <> · <span className="text-emerald-600 font-medium">{activeCount} activo{activeCount === 1 ? "" : "s"}</span></>}
-                    </p>
-                </div>
-                <button
-                    onClick={addNew}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-yellow-orange-500 rounded-xl hover:bg-yellow-orange-600 transition shadow-sm cursor-pointer"
-                >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    Nuevo código
-                </button>
-            </div>
+                    </>
+                }
+                acciones={<Boton variante="secundario" icono={ICONO_MAS} onClick={addNew}>Nuevo código</Boton>}
+            />
 
             {/* Nota planes de suscripción */}
-            <div className="flex items-start gap-3 px-4 py-3 mb-5 bg-blue-50 border border-blue-200 rounded-2xl">
-                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-sm text-blue-800">
+            <div className="mb-5">
+            <Aviso tono="azul">
+                <p>
                     El código solo se aplica a los planes de <strong>pago único</strong>
                     {unicos.length > 0 && <>: hoy, <strong>{unicos.join(" y ")}</strong></>}.
                     {recurrentes.length > 0 && (
@@ -275,6 +265,7 @@ export default function DescuentosPage() {
                         </>
                     )}
                 </p>
+            </Aviso>
             </div>
 
             {/* Lista */}
@@ -285,10 +276,7 @@ export default function DescuentosPage() {
                     </div>
                     <p className="text-sm font-medium text-gray-600">Aún no hay códigos de descuento</p>
                     <p className="text-xs text-gray-400 mt-1 mb-4">Crea tu primer código para usarlo en el checkout.</p>
-                    <button onClick={addNew} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-yellow-orange-500 rounded-xl hover:bg-yellow-orange-600 transition shadow-sm cursor-pointer">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                        Crear código
-                    </button>
+                    <Boton variante="secundario" icono={ICONO_MAS} onClick={addNew}>Crear código</Boton>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
@@ -389,13 +377,9 @@ export default function DescuentosPage() {
                                                 <span className="relative w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-4" />
                                                 <span className="text-sm font-medium text-gray-600">{r.active ? "Activo" : "Inactivo"}</span>
                                             </label>
-                                            <button
-                                                onClick={() => remove(r._id)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 transition px-2 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            <Boton variante="fantasma" tamano="sm" icono={ICONO_PAPELERA} onClick={() => pedirEliminar(r)}>
                                                 {r._isNew ? "Descartar" : "Eliminar"}
-                                            </button>
+                                            </Boton>
                                         </div>
 
                                         {subWarning && (
@@ -417,16 +401,8 @@ export default function DescuentosPage() {
                                         {/* Código + estado */}
                                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
                                             <span className="text-base font-mono font-bold text-gray-800">{r.code || "—"}</span>
-                                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                                                {st.label}
-                                            </span>
-                                            {dirty && (
-                                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                                    Sin guardar
-                                                </span>
-                                            )}
+                                            <Chip tono={st.tono} conPunto>{st.label}</Chip>
+                                            {dirty && <Chip tono="ambar" conPunto>Sin guardar</Chip>}
                                         </div>
                                         {/* Detalles */}
                                         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm text-gray-500">
@@ -442,26 +418,28 @@ export default function DescuentosPage() {
                                             {r.expires_at && (
                                                 <span className="inline-flex items-center gap-1.5">
                                                     <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                    Expira {dayjs(r.expires_at).format("DD/MM/YYYY")}
+                                                    Expira {fmtDia(r.expires_at)}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                     {/* Acciones */}
                                     <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button
+                                        <Boton
+                                            variante="secundario"
+                                            tamano="sm"
                                             onClick={() => update(r._id, { _editing: true })}
-                                            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition cursor-pointer"
+                                            icono={<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
                                         >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                             Editar
-                                        </button>
+                                        </Boton>
                                         <button
-                                            onClick={() => remove(r._id)}
-                                            aria-label="Eliminar código"
+                                            onClick={() => pedirEliminar(r)}
+                                            aria-label={`Eliminar el código ${r.code}`}
+                                            title="Eliminar"
                                             className="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                         >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            {ICONO_PAPELERA}
                                         </button>
                                     </div>
                                 </div>
@@ -473,34 +451,29 @@ export default function DescuentosPage() {
 
             {/* Barra fija de guardado — solo aparece si hay cambios pendientes */}
             {hasChanges && (
-                <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
+                <div className="fixed bottom-0 left-0 lg:left-60 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
                     <div className="max-w-3xl mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-3">
                         <p className="text-sm text-amber-700 font-medium flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                             {pendingCount} cambio{pendingCount === 1 ? "" : "s"} sin guardar
                         </p>
                         <div className="flex items-center gap-2">
-                            <button
-                                onClick={discard}
-                                disabled={saving}
-                                className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition disabled:opacity-50 cursor-pointer"
-                            >
+                            <Boton variante="secundario" onClick={discard} disabled={saving}>
                                 Descartar
-                            </button>
-                            <button
+                            </Boton>
+                            <Boton
+                                variante="primario"
                                 onClick={handleSave}
-                                disabled={saving}
-                                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-yellow-orange-500 text-white rounded-xl hover:bg-yellow-orange-600 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                                cargando={saving}
+                                icono={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                             >
-                                {saving
-                                    ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-                                    : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                 Guardar cambios
-                            </button>
+                            </Boton>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </Pagina>
     );
 }
