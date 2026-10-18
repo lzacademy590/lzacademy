@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
 import { LEVELED_PLAN_KEYS, planLabel, planBadgeClass } from "@/app/lib/plans";
+import { Pagina, EncabezadoDePagina, Tarjeta, Cargando, Spinner, NIVELES, useToast } from "../_ui";
 
 type Availability = Record<string, Record<string, boolean>>;
 
@@ -15,28 +16,25 @@ const PLAN_META: Record<string, { label: string; chip: string }> = Object.fromEn
   PLANS.map((p) => [p, { label: planLabel(p), chip: planBadgeClass(p) }])
 );
 
-// Debe seguir a LEVELS de lzacademy-backend/src/config/plans.js. Este panel es el
-// que controla qué niveles se venden: el corte de la fusión B2 (encender B2 y
-// apagar B2.1/B2.2) se hace desde aquí, sin desplegar.
-const LEVELS: { value: string; label: string }[] = [
-  { value: "Principiante",                label: "Principiante (A1)" },
-  { value: "Basico",                      label: "Básico (A2)" },
-  { value: "Intermedio",                  label: "Intermedio (B1)" },
-  { value: "Intermedio alto",             label: "Intermedio alto (B2)" },
-  { value: "Intermedio alto-gramatica",   label: "Intermedio alto (B2.1) · heredado" },
-  { value: "Intermedio alto-produccion",  label: "Intermedio alto (B2.2) · heredado" },
-];
+// Debe seguir a LEVELS de lzacademy-backend/src/config/plans.js (lo hace `NIVELES`
+// del kit). Este panel es el que controla qué niveles se venden: el corte de la
+// fusión B2 (encender B2 y apagar B2.1/B2.2) se hace desde aquí, sin desplegar.
+const HEREDADOS = new Set(["Intermedio alto-gramatica", "Intermedio alto-produccion"]);
+const LEVELS = NIVELES.map((n) => ({
+  value: n.value,
+  label: HEREDADOS.has(n.value) ? `${n.label} · heredado` : n.label,
+}));
 
 export default function NivelesPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [availability, setAvailability] = useState<Availability>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState("");
 
+  // GET público a propósito: el formulario de pago lee la misma ruta sin sesión.
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -53,18 +51,30 @@ export default function NivelesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function save(updated: Availability) {
-    setSaving(true); setSaved(false); setError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.push("/admin/login"); return; }
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/level-availability`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ availability: updated }),
-    });
-    if (res.ok) { setAvailability(updated); setSaved(true); setTimeout(() => setSaved(false), 2500); }
-    else setError("Error guardando los cambios. Intenta de nuevo.");
-    setSaving(false);
+  // Optimista: el interruptor cambia al instante y vuelve atrás si el guardado falla.
+  async function save(updated: Availability, previo: Availability) {
+    setSaving(true);
+    setAvailability(updated);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setAvailability(previo); router.push("/admin/login"); return; }
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/config/level-availability`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ availability: updated }),
+      });
+      if (res.ok) {
+        toast.exito("Niveles guardados.");
+      } else {
+        setAvailability(previo);
+        toast.error("Error guardando los cambios. Intenta de nuevo.");
+      }
+    } catch {
+      setAvailability(previo);
+      toast.error("No se pudo conectar con el servidor. El cambio NO se guardó.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleToggle(plan: string, level: string) {
@@ -73,52 +83,37 @@ export default function NivelesPage() {
       ...availability,
       [plan]: { ...(availability[plan] ?? {}), [level]: !current },
     };
-    save(updated);
+    save(updated, availability);
   }
 
   if (loadError) return <ErrorState message={loadError} onRetry={load} />;
-
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-3 text-gray-400">
-        <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <span className="text-sm">Cargando…</span>
-      </div>
-    </div>
-  );
+  if (loading) return <Cargando />;
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto">
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Niveles por plan</h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Activa o desactiva qué niveles se pueden comprar en cada plan. Los cambios se aplican
-            de inmediato en el formulario de pago.
-          </p>
-        </div>
-        {saving ? (
-          <span className="shrink-0 text-xs font-medium text-gray-400">Guardando…</span>
-        ) : saved ? (
-          <span className="shrink-0 text-xs font-medium text-emerald-600">Guardado ✓</span>
-        ) : null}
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">{error}</div>
-      )}
+    <Pagina ancho="estrecho">
+      <EncabezadoDePagina
+        titulo="Niveles por plan"
+        descripcion="Activa o desactiva qué niveles se pueden comprar en cada plan. Los cambios se aplican de inmediato en el formulario de pago."
+        acciones={
+          saving ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400">
+              <Spinner className="w-3.5 h-3.5" /> Guardando…
+            </span>
+          ) : undefined
+        }
+      />
 
       <div className="space-y-5">
         {PLANS.map((plan) => (
-          <div key={plan} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <Tarjeta
+            key={plan}
+            sinRelleno
+            titulo={
               <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${PLAN_META[plan]?.chip ?? "bg-gray-100 text-gray-600"}`}>
                 {PLAN_META[plan]?.label ?? plan}
               </span>
-            </div>
+            }
+          >
             <ul className="divide-y divide-gray-50">
               {LEVELS.map((lvl) => {
                 const enabled = availability[plan]?.[lvl.value] !== false;
@@ -127,9 +122,13 @@ export default function NivelesPage() {
                     <p className="text-sm font-semibold text-gray-700">{lvl.label}</p>
                     <div className="flex items-center gap-3 shrink-0">
                       <button
+                        type="button"
+                        role="switch"
+                        aria-checked={enabled}
+                        aria-label={`${lvl.label} en ${PLAN_META[plan]?.label ?? plan}`}
                         onClick={() => handleToggle(plan, lvl.value)}
                         disabled={saving}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed ${
                           enabled ? "bg-emerald-500" : "bg-gray-200"
                         }`}
                       >
@@ -145,9 +144,9 @@ export default function NivelesPage() {
                 );
               })}
             </ul>
-          </div>
+          </Tarjeta>
         ))}
       </div>
-    </div>
+    </Pagina>
   );
 }

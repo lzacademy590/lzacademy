@@ -17,7 +17,7 @@ export function LongText({
   const preview = value.length > maxChars ? value.slice(0, maxChars) + "…" : value;
   return (
     <button
-      className="text-xs text-left text-zinc-600 hover:text-falu-red-700 hover:underline transition max-w-[160px] truncate block"
+      className="text-xs text-left text-gray-600 hover:text-falu-red-700 hover:underline transition max-w-[160px] truncate block"
       onClick={() => onOpen({ title, text: value })}
       title="Ver completo"
     >

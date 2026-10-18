@@ -4,6 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
+import { ProveedorDeToast } from "./_ui/toast";
+import { ProveedorDeConfirmacion } from "./_ui/confirmar";
+import { ProveedorDePendientes, usePendientes, contadoresDelMenu, totalDe } from "./_ui/pendientes";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode };
 type NavGroup = { title: string; items: NavItem[] };
@@ -133,7 +136,27 @@ const IDLE_MS = 20 * 60 * 1000;
 const WARN_MS = 1 * 60 * 1000;
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const isLogin = usePathname() === "/admin/login";
+  return (
+    <ProveedorDeToast>
+      <ProveedorDeConfirmacion>
+        <ProveedorDePendientes activo={!isLogin}>
+          <MarcoDelPanel>{children}</MarcoDelPanel>
+        </ProveedorDePendientes>
+      </ProveedorDeConfirmacion>
+    </ProveedorDeToast>
+  );
+}
+
+function MarcoDelPanel({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { datos: pendientes } = usePendientes();
+  const contadores = contadoresDelMenu(pendientes);
+  // El Inicio cuenta lo URGENTE: dinero que no entró y grupos que no abren.
+  if (pendientes) {
+    contadores["/admin/dashboard"] =
+      totalDe(pendientes.pagosFallidos) + totalDe(pendientes.noAbrioSinAvisar) + totalDe(pendientes.enRiesgo);
+  }
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
@@ -201,7 +224,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           {item.icon}
         </span>
-        <span className="truncate">{item.label}</span>
+        <span className="truncate flex-1">{item.label}</span>
+        {(contadores[item.href] ?? 0) > 0 && (
+          <span
+            className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-falu-red-600 text-white text-[10px] font-bold flex items-center justify-center"
+            aria-label={`${contadores[item.href]} pendientes`}
+          >
+            {contadores[item.href]}
+          </span>
+        )}
       </Link>
     );
   };

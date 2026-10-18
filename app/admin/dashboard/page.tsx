@@ -4,21 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
 import { planColor } from "../_utils/planColors";
 import { ErrorState } from "../_utils/ErrorState";
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-const PT = "America/Los_Angeles";
-const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-function formatMonth(key: string) {
-    const [year, month] = key.split("-");
-    return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
-}
+import { fmtDatePT, fmtDateTimePT, fmtDia, fmtMonthYear as formatMonth, MONTH_NAMES } from "../_utils/format";
+import { Cargando, EncabezadoDePagina, FilaDeNumeros, Pagina, TarjetaDeNumero } from "../_ui";
+import { PendientesDeHoy } from "./PendientesDeHoy";
 
 // La clave viene en dos formas y significan cosas distintas (ver `cohortKey` en
 // el backend): "YYYY-MM-DD" es una COHORTE de verdad —una tanda que el negocio
@@ -31,9 +21,10 @@ function formatMonth(key: string) {
 function formatCohort(key: string) {
     if (key === "Sin fecha") return key;
     if (/^\d{4}-\d{2}$/.test(key)) {
-        return `${dayjs.utc(`${key}-01`).format("MMM YYYY")} · sin cohorte`;
+        const [y, m] = key.split("-");
+        return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y} · sin cohorte`;
     }
-    return dayjs.utc(key).format("DD MMM YYYY");
+    return fmtDia(key);
 }
 
 function dollars(cents: number) {
@@ -72,24 +63,6 @@ interface InicioData {
         leads: { id: string; created_at: string; full_name: string; email: string; country: string; english_level: string; contacted: boolean }[];
         cancellations: { id: number; updated_at: string; full_name: string; email: string; plan: string; kind: "canceled" | "past_due" | "scheduled"; current_period_end: string | null }[];
     };
-}
-
-function StatCard({
-    label, value, sub, icon, accent = "text-falu-red-600", bg = "bg-falu-red-50",
-}: {
-    label: string; value: string | number; sub?: string;
-    icon: React.ReactNode; accent?: string; bg?: string;
-}) {
-    return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 flex items-start gap-3 sm:gap-4 hover:shadow-md transition-shadow">
-            <div className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${bg} flex items-center justify-center ${accent}`}>{icon}</div>
-            <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-tight">{label}</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 truncate">{value}</p>
-                {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
-            </div>
-        </div>
-    );
 }
 
 // Mini gráfico de barras para la tendencia. Sin libs externas; Tailwind puro.
@@ -148,17 +121,7 @@ export default function Inicio() {
 
     if (loadError) return <ErrorState message={loadError} onRetry={load} />;
 
-    if (!data) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
+    if (!data) return <Cargando />;
 
     const { mrr, activeUsers, revenueTrend, churnByCohort, activity } = data;
 
@@ -172,35 +135,33 @@ export default function Inicio() {
     const planEntries = Object.entries(mrr.byPlan).sort((a, b) => b[1].mrr - a[1].mrr);
 
     return (
-        <div className="p-4 md:p-8 max-w-screen-xl mx-auto">
-            {/* Header */}
-            <div className="mb-7">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Inicio</h1>
-                <p className="text-sm text-gray-400 mt-1">Resumen del negocio y actividad reciente</p>
-            </div>
+        <Pagina>
+            <EncabezadoDePagina titulo="Inicio" descripcion="Lo que hay que atender hoy y cómo va el negocio" />
 
-            {/* Stat cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <StatCard label="MRR" value={dollars(mrr.total)}
-                    sub="cobro por ciclo (28d)"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
+            <PendientesDeHoy />
+
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Cómo va el negocio</h2>
+            <FilaDeNumeros>
+                <TarjetaDeNumero etiqueta="MRR" valor={dollars(mrr.total)}
+                    detalle="cobro por ciclo (28d)"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
                 />
-                <StatCard label="ARR proyectado" value={dollars(mrr.arr)}
-                    sub="13 ciclos × revenue actual"
-                    bg="bg-violet-50" accent="text-violet-600"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
+                <TarjetaDeNumero etiqueta="ARR proyectado" valor={dollars(mrr.arr)}
+                    detalle="13 ciclos × revenue actual"
+                    acento="violeta"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
                 />
-                <StatCard label="Usuarios activos" value={activeUsers.total}
-                    sub={`${mrr.activeSubscribers} con suscripción`}
-                    bg="bg-emerald-50" accent="text-emerald-600"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+                <TarjetaDeNumero etiqueta="Usuarios activos" valor={activeUsers.total}
+                    detalle={`${mrr.activeSubscribers} con suscripción`}
+                    acento="verde"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                 />
-                <StatCard label="Churn global" value={`${globalChurn}%`}
-                    sub={`${churnByCohort.reduce((a, c) => a + c.canceled, 0)} cancelados`}
-                    bg="bg-amber-50" accent="text-amber-600"
-                    icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" /></svg>}
+                <TarjetaDeNumero etiqueta="Churn global" valor={`${globalChurn}%`}
+                    detalle={`${churnByCohort.reduce((a, c) => a + c.canceled, 0)} cancelados`}
+                    acento="ambar"
+                    icono={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" /></svg>}
                 />
-            </div>
+            </FilaDeNumeros>
 
             {/* Trend + MRR breakdown */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
@@ -287,7 +248,7 @@ export default function Inicio() {
                                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total</th>
                                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Activos</th>
                                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Programadas</th>
-                                    <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Past due</th>
+                                    <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Pago fallido</th>
                                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Canceladas</th>
                                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Churn</th>
                                 </tr>
@@ -343,7 +304,7 @@ export default function Inicio() {
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                             <p className="text-sm font-semibold text-gray-800">{dollars(p.amount)}</p>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">{dayjs.utc(p.created_at).tz(PT).format("DD MMM h:mm a")}</p>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">{fmtDateTimePT(p.created_at)}</p>
                                         </div>
                                     </div>
                                 </li>
@@ -376,7 +337,7 @@ export default function Inicio() {
                                             ) : (
                                                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500">Nuevo</span>
                                             )}
-                                            <p className="text-[10px] text-gray-400">{dayjs.utc(l.created_at).tz(PT).format("DD MMM")}</p>
+                                            <p className="text-[10px] text-gray-400">{fmtDatePT(l.created_at)}</p>
                                         </div>
                                     </div>
                                 </li>
@@ -398,7 +359,7 @@ export default function Inicio() {
                             {activity.cancellations.map((c) => {
                                 const kindMap = {
                                     canceled: { label: "Cancelada", cls: "bg-red-50 text-red-700" },
-                                    past_due: { label: "Past due", cls: "bg-orange-50 text-orange-700" },
+                                    past_due: { label: "Pago fallido", cls: "bg-orange-50 text-orange-700" },
                                     scheduled: { label: "Programada", cls: "bg-amber-50 text-amber-700" },
                                 };
                                 const k = kindMap[c.kind];
@@ -416,7 +377,7 @@ export default function Inicio() {
                                             <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${k.cls}`}>{k.label}</span>
                                                 {c.current_period_end && (
-                                                    <p className="text-[10px] text-gray-400">hasta {dayjs.utc(c.current_period_end).tz(PT).format("DD MMM")}</p>
+                                                    <p className="text-[10px] text-gray-400">hasta {fmtDatePT(c.current_period_end)}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -427,6 +388,6 @@ export default function Inicio() {
                     )}
                 </div>
             </div>
-        </div>
+        </Pagina>
     );
 }

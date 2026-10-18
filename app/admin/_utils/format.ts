@@ -26,6 +26,16 @@ export const MONTH_NAMES = [
 export const fmtDatePT = (ts: string | null | undefined): string =>
   ts ? `${dayjs.utc(ts).tz(PT).date()} ${MONTH_NAMES[dayjs.utc(ts).tz(PT).month()]} ${dayjs.utc(ts).tz(PT).year()}` : "—";
 
+/**
+ * Lo mismo para una fecha SIN hora ("2026-11-02": `inscription_date`, la fecha de
+ * una cohorte). ⚠️ No pasa por PT: convertir "2026-11-02" desde UTC la movería al
+ * día 1. También acepta un timestamp: se queda con su parte de fecha.
+ */
+export const fmtDia = (d: string | null | undefined): string => {
+  const m = d ? /^(\d{4})-(\d{2})-(\d{2})/.exec(d) : null;
+  return m ? `${parseInt(m[3], 10)} ${MONTH_NAMES[parseInt(m[2], 10) - 1]} ${m[1]}` : "—";
+};
+
 /** Formato ESTÁNDAR de fecha+hora del admin: "16 Jun 2026, 3:05 p. m." (en PT). */
 export const fmtDateTimePT = (ts: string | null | undefined): string =>
   ts ? `${fmtDatePT(ts)}, ${dayjs.utc(ts).tz(PT).format("h:mm a")}` : "—";

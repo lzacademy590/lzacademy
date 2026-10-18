@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { ErrorState } from "../_utils/ErrorState";
@@ -8,6 +9,7 @@ import { todayPT } from "../_utils/ptTime";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
+import { Pagina, EncabezadoDePagina, Cargando, Aviso } from "../_ui";
 import { HorariosDeGrupo } from "./HorariosDeGrupo";
 
 /*
@@ -69,39 +71,32 @@ export default function HorariosPage() {
     );
 
     if (loadError) return <ErrorState message={loadError} onRetry={load} />;
-
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-                <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <span className="text-sm">Cargando…</span>
-            </div>
-        </div>
-    );
+    if (loading) return <Cargando />;
 
     const futuras = fechas.filter(d => d.value >= today);
 
     return (
-        <div className="p-4 md:p-8 max-w-2xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Horarios por grupo</h1>
-                <p className="text-sm text-gray-400 mt-1">
-                    Publica los horarios de cada fecha de inicio y nivel, mira cuántos alumnos faltan para abrir cada grupo y mueve alumnos entre grupos.
-                    Las fechas se crean en <a href="/admin/fechas" className="text-falu-red-600 hover:underline">Fechas de inicio</a>.
-                </p>
-            </div>
+        <Pagina ancho="medio">
+            <EncabezadoDePagina
+                titulo="Horarios por grupo"
+                descripcion={
+                    <>
+                        Publica los horarios de cada fecha de inicio y nivel, mira cuántos alumnos faltan para abrir cada grupo y mueve alumnos entre grupos.
+                        Las fechas se crean en <Link href="/admin/fechas" className="text-falu-red-600 hover:underline">Fechas de inicio</Link>.
+                    </>
+                }
+            />
 
             {futuras.length === 0 && (
-                <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    No hay fechas de inicio futuras. Crea una en{" "}
-                    <a href="/admin/fechas" className="font-semibold underline">Fechas de inicio</a> para poder publicar sus horarios.
+                <div className="mb-6">
+                    <Aviso tono="ambar">
+                        No hay fechas de inicio futuras. Crea una en{" "}
+                        <Link href="/admin/fechas" className="font-semibold underline">Fechas de inicio</Link> para poder publicar sus horarios.
+                    </Aviso>
                 </div>
             )}
 
             <HorariosDeGrupo fechas={futuras} planes={planes} />
-        </div>
+        </Pagina>
     );
 }
