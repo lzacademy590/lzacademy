@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { planColor } from "../_utils/planColors";
 import { ErrorState } from "../_utils/ErrorState";
 import { fmtDatePT, fmtDateTimePT, fmtDia, fmtMonthYear as formatMonth, MONTH_NAMES } from "../_utils/format";
-import { Cargando, EncabezadoDePagina, FilaDeNumeros, Pagina, TarjetaDeNumero } from "../_ui";
+import { Cargando, EncabezadoDePagina, FilaDeNumeros, Pagina, Tarjeta, TarjetaDeNumero } from "../_ui";
 import { PendientesDeHoy } from "./PendientesDeHoy";
 
 // La clave viene en dos formas y significan cosas distintas (ver `cohortKey` en
@@ -165,19 +165,11 @@ export default function Inicio() {
 
             {/* Trend + MRR breakdown */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 className="text-sm font-semibold text-gray-700">Revenue real · últimos 6 meses</h3>
-                            <p className="text-xs text-gray-400 mt-0.5">Pagos recibidos (no proyectados) por mes en PT</p>
-                        </div>
-                    </div>
+                <Tarjeta className="lg:col-span-2 min-w-0" titulo="Revenue real · últimos 6 meses" descripcion="Pagos recibidos (no proyectados) por mes en PT">
                     <RevenueTrendChart data={revenueTrend} />
-                </div>
+                </Tarjeta>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-1">MRR por plan</h3>
-                    <p className="text-xs text-gray-400 mb-4">Solo planes recurrentes</p>
+                <Tarjeta className="min-w-0" titulo="MRR por plan" descripcion="Solo planes recurrentes">
                     {planEntries.length === 0 ? (
                         <p className="text-xs text-gray-400">Sin suscriptores activos</p>
                     ) : (
@@ -199,16 +191,16 @@ export default function Inicio() {
                             ))}
                         </div>
                     )}
-                </div>
+                </Tarjeta>
             </div>
 
             {/* Usuarios activos por plan (incluye one-time payments) */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-                <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-sm font-semibold text-gray-700">Usuarios activos por plan</h3>
-                    <span className="text-xs text-gray-400">{activeUsers.total} total</span>
-                </div>
-                <p className="text-xs text-gray-400 mb-4">Todos los alumnos con estado activo, incluye pagos únicos (Personalizado, Speaking)</p>
+            <Tarjeta
+                className="mb-6"
+                titulo="Usuarios activos por plan"
+                descripcion="Alumnos activos, incluidos los de pago único"
+                acciones={<span className="text-xs text-gray-400">{activeUsers.total} total</span>}
+            >
                 {activeUsers.total === 0 ? (
                     <p className="text-xs text-gray-400">Sin usuarios activos</p>
                 ) : (
@@ -229,14 +221,16 @@ export default function Inicio() {
                             ))}
                     </div>
                 )}
-            </div>
+            </Tarjeta>
 
-            {/* Churn por cohorte */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-                <div className="px-5 py-4 border-b border-gray-50">
-                    <h3 className="text-sm font-semibold text-gray-700">Churn por cohorte</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">% de cancelaciones efectivas sobre el total de cada fecha de inicio</p>
-                </div>
+            {/* Churn por cohorte — detalle: nace plegado */}
+            <Tarjeta
+                className="mb-6"
+                sinRelleno
+                abierta={false}
+                titulo="Churn por cohorte"
+                descripcion="% de cancelaciones sobre el total de cada fecha de inicio"
+            >
                 {churnByCohort.length === 0 ? (
                     <p className="text-sm text-gray-400 text-center py-8">Sin cohortes con suscripciones registradas</p>
                 ) : (
@@ -277,16 +271,13 @@ export default function Inicio() {
                         </table>
                     </div>
                 )}
-            </div>
+            </Tarjeta>
 
             {/* Actividad reciente: 3 columnas */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Últimos pagos */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-700">Últimos pagos</h3>
-                        <Link href="/admin/pagos" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todos →</Link>
-                    </div>
+                <Tarjeta className="min-w-0" sinRelleno titulo="Últimos pagos"
+                    acciones={<Link href="/admin/pagos" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todos →</Link>}>
                     {activity.payments.length === 0 ? (
                         <p className="text-sm text-gray-400 text-center py-8">Sin pagos recientes</p>
                     ) : (
@@ -311,14 +302,11 @@ export default function Inicio() {
                             ))}
                         </ul>
                     )}
-                </div>
+                </Tarjeta>
 
                 {/* Últimos leads */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-700">Últimos leads</h3>
-                        <Link href="/admin/marketing" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todos →</Link>
-                    </div>
+                <Tarjeta className="min-w-0" sinRelleno titulo="Últimos leads"
+                    acciones={<Link href="/admin/marketing" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todos →</Link>}>
                     {activity.leads.length === 0 ? (
                         <p className="text-sm text-gray-400 text-center py-8">Sin leads recientes</p>
                     ) : (
@@ -344,14 +332,11 @@ export default function Inicio() {
                             ))}
                         </ul>
                     )}
-                </div>
+                </Tarjeta>
 
                 {/* Últimas cancelaciones */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-700">Cancelaciones recientes</h3>
-                        <Link href="/admin/no-renovados" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todas →</Link>
-                    </div>
+                <Tarjeta className="min-w-0" sinRelleno titulo="Cancelaciones recientes"
+                    acciones={<Link href="/admin/no-renovados" className="text-[11px] font-medium text-falu-red-700 hover:text-falu-red-800 transition">Ver todas →</Link>}>
                     {activity.cancellations.length === 0 ? (
                         <p className="text-sm text-gray-400 text-center py-8">Sin cancelaciones recientes</p>
                     ) : (
@@ -386,7 +371,7 @@ export default function Inicio() {
                             })}
                         </ul>
                     )}
-                </div>
+                </Tarjeta>
             </div>
         </Pagina>
     );

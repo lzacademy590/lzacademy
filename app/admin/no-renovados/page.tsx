@@ -30,6 +30,9 @@ import {
     ICONO_DESCARGA,
     nivelLabel,
     useParametroDeUrl,
+    EscribirCorreo,
+    PLANTILLAS,
+    type Plantilla,
 } from "../_ui";
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -92,6 +95,14 @@ function ChipFinDePeriodo() {
 }
 
 const PAGE_SIZE = 15;
+
+/** La plantilla del correo según por qué no renovó. */
+function plantillaPara(t: Tipo | null): Plantilla {
+    if (t === "pago-fallido") return PLANTILLAS.pagosFallidos;
+    if (t === "cancela-pronto") return PLANTILLAS.cancelanPronto;
+    if (t === "cancelados" || t === "vencidos") return PLANTILLAS.recuperar;
+    return PLANTILLAS.general;
+}
 const OPCIONES_DE_PLAN = [
     { valor: "all", label: "Todos los planes" },
     ...ALL_PLAN_KEYS.map((p) => ({ valor: p as string, label: p })),
@@ -109,6 +120,9 @@ export default function NoRenovadosPage() {
     useParametroDeUrl("tipo", (t) => { if ((TIPOS as readonly string[]).includes(t ?? "")) setTipoState(t as Tipo); });
     const [ahora] = useState(() => Date.now());
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [escribirA, setEscribirA] = useState<{ alumnos: { email: string; nombre: string }[]; plantilla: Plantilla } | null>(null);
+    const escribirAUno = (u: NoRenewUser) =>
+        setEscribirA({ alumnos: [{ email: u.email, nombre: u.full_name }], plantilla: plantillaPara(tipoDe(u, ahora)) });
     const router = useRouter();
 
     const setTipo = (t: Tipo) => {
@@ -202,7 +216,14 @@ export default function NoRenovadosPage() {
                 titulo="No renovados"
                 descripcion="Suscriptores que cancelaron o no renovaron su suscripción"
                 acciones={filtered.length > 0 && (
-                    <Boton variante="secundario" icono={ICONO_DESCARGA} onClick={exportCSV}>Exportar CSV</Boton>
+                    <>
+                        <Boton
+                            onClick={() => setEscribirA({ alumnos: filtered.map((u) => ({ email: u.email, nombre: u.full_name })), plantilla: plantillaPara(tipo === "todos" ? null : tipo) })}
+                        >
+                            {filtered.length === 1 ? "Escribirle" : `Escribir a ${filtered.length}`}
+                        </Boton>
+                        <Boton variante="secundario" icono={ICONO_DESCARGA} onClick={exportCSV}>Exportar CSV</Boton>
+                    </>
                 )}
             />
 
@@ -245,7 +266,7 @@ export default function NoRenovadosPage() {
                             <table className="min-w-full divide-y divide-gray-100">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        {["Nombre", "Email", "País", "Plan", "Nivel", "Estado", "Fin de periodo", "Último pago", "Gestionar"].map((h) => (
+                                        {["Nombre", "Email", "País", "Plan", "Nivel", "Estado", "Fin de periodo", "Último pago", ""].map((h) => (
                                             <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
@@ -267,7 +288,10 @@ export default function NoRenovadosPage() {
                                             <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDatePT(u.current_period_end)}</td>
                                             <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDatePT(u.last_payment_date)}</td>
                                             <td className="px-5 py-3 whitespace-nowrap">
-                                                <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Gestionar →</Link>
+                                                <div className="flex items-center gap-3">
+                                                    <button type="button" onClick={() => escribirAUno(u)} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition cursor-pointer">Escribir</button>
+                                                    <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-gray-500 hover:text-gray-800 transition">Gestionar →</Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -298,8 +322,9 @@ export default function NoRenovadosPage() {
                                         <span>·</span>
                                         <span>Último pago: {fmtDatePT(u.last_payment_date)}</span>
                                     </div>
-                                    <div className="mt-3 pt-2 border-t border-gray-100">
-                                        <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition">Gestionar →</Link>
+                                    <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-4">
+                                        <button type="button" onClick={() => escribirAUno(u)} className="text-xs font-medium text-falu-red-700 hover:text-falu-red-800 transition cursor-pointer">Escribir</button>
+                                        <Link href={`/admin/busqueda?q=${encodeURIComponent(u.email)}`} className="text-xs font-medium text-gray-500 hover:text-gray-800 transition">Gestionar →</Link>
                                     </div>
                                 </div>
                             ))}
@@ -308,6 +333,13 @@ export default function NoRenovadosPage() {
                 )}
                 <Paginacion pagina={pagina} totalPaginas={totalPaginas} setPagina={setPagina} total={total} />
             </Tarjeta>
+            {escribirA && (
+                <EscribirCorreo
+                    destino={{ tipo: "alumnos", alumnos: escribirA.alumnos }}
+                    plantilla={escribirA.plantilla}
+                    onCerrar={() => setEscribirA(null)}
+                />
+            )}
         </Pagina>
     );
 }

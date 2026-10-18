@@ -65,3 +65,105 @@ html {
   display: flex;
   height: auto;
 }
+
+/* Tablas del panel admin que NO caben en su sitio (`AdaptarTablas`, en
+   app/admin/_ui/tablas.tsx, les pone `lz-apilada`): cada fila pasa a ser una
+   ficha con «etiqueta · valor» por línea, en vez de sobresalir de la pantalla.
+
+   ⚠️ CSS plano y no utilidades de Tailwind A PROPÓSITO: las utilidades viven en
+   `@layer utilities` y lo que va fuera de capa les gana sin importar la
+   especificidad. Es lo que deja que esto pise el `px-5`, el `whitespace-nowrap`,
+   el `truncate` o el `sticky` que cada tabla trae escritos. */
+.lz-admin table.lz-apilada,
+.lz-admin table.lz-apilada > tbody,
+.lz-admin table.lz-apilada > tbody > tr,
+.lz-admin table.lz-apilada > tbody > tr > td {
+  display: block;
+  width: 100%;
+}
+.lz-admin table.lz-apilada > thead {
+  display: none;
+}
+.lz-admin table.lz-apilada > tbody > tr {
+  padding: 12px 16px;
+  border-top: 1px solid #f3f4f6;
+}
+.lz-admin table.lz-apilada > tbody > tr:first-child {
+  border-top: 0;
+}
+/* La etiqueta FLOTA a la izquierda y el contenido fluye a la derecha. Con flex
+   cada hijo de la celda (un punto de aviso + el nombre) se repartía por la fila
+   y el punto quedaba suelto en medio (medido en Pagos). */
+.lz-admin table.lz-apilada > tbody > tr > td {
+  display: block;
+  padding: 3px 0;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: none;
+  position: static;
+  background: transparent;
+}
+.lz-admin table.lz-apilada > tbody > tr > td::before {
+  content: attr(data-label);
+  float: left;
+  margin-right: 12px;
+  max-width: 45%;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+/* Sin etiqueta (la fila de «sin resultados», una columna de acciones sin
+   título): el contenido ocupa la línea entera. */
+.lz-admin table.lz-apilada > tbody > tr > td:not([data-label])::before,
+.lz-admin table.lz-apilada > tbody > tr > td[data-label=""]::before {
+  display: none;
+}
+.lz-admin table.lz-apilada > tbody > tr > td:not([data-label]),
+.lz-admin table.lz-apilada > tbody > tr > td[data-label=""] {
+  text-align: left;
+}
+.lz-admin table.lz-apilada > tbody > tr > td::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+/* Apilada hay sitio: lo que dentro venía recortado con «…» (un correo con
+   `truncate`, un `max-w-[140px]`) se enseña entero. */
+.lz-admin table.lz-apilada > tbody > tr > td * {
+  max-width: none;
+  text-overflow: clip;
+}
+.lz-admin table.lz-apilada > tbody > tr > td .truncate {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.lz-admin table.lz-apilada > tbody > tr > td:empty {
+  display: none;
+}
+/* Con hueco, la ficha va en dos columnas de «etiqueta · valor»: la mitad de
+   alta, y una lista de leads sigue siendo recorrible. */
+@media (min-width: 640px) {
+  .lz-admin table.lz-apilada > tbody > tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 32px;
+  }
+  .lz-admin table.lz-apilada > tbody > tr > td:only-child {
+    grid-column: 1 / -1;
+  }
+}
+/* Escalón intermedio: la tabla no cabía tal cual, pero sí dejando que el texto
+   parta línea. Se queda como tabla. */
+.lz-admin table.lz-compacta > thead > tr > th,
+.lz-admin table.lz-compacta > tbody > tr > td {
+  white-space: normal;
+  /* Solo ENTRE palabras: partir dentro de una (un correo) dejaría la tabla
+     «cabiendo» con columnas de 50 px ilegibles. Si así no cabe, se apila. */
+  overflow-wrap: normal;
+}
