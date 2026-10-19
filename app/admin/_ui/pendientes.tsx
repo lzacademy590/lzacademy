@@ -6,6 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import type { DetalleDeFallo } from "./motivo-de-rechazo";
 
 type Bloque<T> = { ok: true; total: number; lista: T[] } | { ok: false };
 
@@ -18,7 +19,7 @@ export type AlumnoPendiente = {
   current_period_end?: string | null;
   inscription_date?: string | null;
   origen?: string;
-};
+} & Partial<DetalleDeFallo>;
 
 export type GrupoPendiente = {
   id: string;
@@ -34,7 +35,8 @@ export type GrupoPendiente = {
 
 export type Pendientes = {
   generadoEn: string;
-  pagosFallidos: Bloque<AlumnoPendiente>;
+  /** `yaNoReintenta`: past_due que Stripe ya no intenta cobrar (no cuentan en el total). */
+  pagosFallidos: Bloque<AlumnoPendiente> & { yaNoReintenta?: number };
   cancelanPronto: Bloque<AlumnoPendiente>;
   accesosPendientes: Bloque<AlumnoPendiente>;
   leadsNuevos: Bloque<{ id: string; full_name: string | null; email: string; country: string | null; created_at: string }> & { totalSinContactar?: number };

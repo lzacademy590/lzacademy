@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Boton, BotonEnlace, EscribirCorreo, PLANTILLAS, PlanBadge, Spinner, nivelLabel, type GrupoDeAlumnos } from "../_ui";
 import { usePendientes, type Pendientes, type AlumnoPendiente, type GrupoPendiente } from "../_ui/pendientes";
 import { fmtDatePT, fmtDia } from "../_utils/format";
+import { MotivoDelRechazo } from "../_ui/motivo-de-rechazo";
 
 type Tono = "rojo" | "ambar" | "azul";
 
@@ -64,11 +65,19 @@ const DEFINICIONES: Definicion[] = [
   {
     clave: "pagosFallidos",
     titulo: "Pagos fallidos",
-    explicacion: "Stripe no pudo cobrar la renovación. Escríbeles para que actualicen su tarjeta desde el portal.",
+    explicacion:
+      "Stripe no pudo cobrar la renovación y lo volverá a intentar. Si actualizan su tarjeta desde el portal, el próximo intento cobra solo.",
     tono: "rojo",
     accion: { label: "Ver no renovados", href: "/admin/no-renovados?tipo=pago-fallido" },
     correo: "pagosFallidos",
-    items: (p) => lista(p.pagosFallidos).map(alumnoItem(() => null)),
+    items: (p) =>
+      lista(p.pagosFallidos).map(
+        alumnoItem((a) => (a.motivo !== undefined ? <MotivoDelRechazo d={{ motivo: a.motivo ?? null, intentos: a.intentos ?? null, proximo_intento: a.proximo_intento ?? null, sin_registro: a.sin_registro }} /> : null)),
+      ),
+    extra: (p) =>
+      p.pagosFallidos.ok && p.pagosFallidos.yaNoReintenta
+        ? `${p.pagosFallidos.yaNoReintenta} más que Stripe ya no reintenta, en No renovados`
+        : null,
   },
   {
     clave: "noAbrioSinAvisar",

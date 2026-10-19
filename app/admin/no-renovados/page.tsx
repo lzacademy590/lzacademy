@@ -34,6 +34,7 @@ import {
     PLANTILLAS,
     type Plantilla,
 } from "../_ui";
+import { MotivoDelRechazo, type DetalleDeFallo } from "../_ui/motivo-de-rechazo";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -48,6 +49,8 @@ interface NoRenewUser {
     cancel_at_period_end: boolean | null;
     current_period_end: string | null;
     last_payment_date: string | null;
+    /** Solo en past_due (backend desde 2026-10-18). */
+    pago_fallido?: (DetalleDeFallo & { sigue_reintentando: boolean }) | null;
 }
 
 /* ── Tipo de no renovado ────────────────────────────────────────────────── */
@@ -284,6 +287,9 @@ export default function NoRenovadosPage() {
                                                     <EstadoDeSuscripcion estado={u.subscription_status} />
                                                     {u.cancel_at_period_end && <ChipFinDePeriodo />}
                                                 </div>
+                                                {u.pago_fallido && (
+                                                    <div className="mt-1 max-w-xs"><MotivoDelRechazo d={u.pago_fallido} sigueReintentando={u.pago_fallido.sigue_reintentando} /></div>
+                                                )}
                                             </td>
                                             <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDatePT(u.current_period_end)}</td>
                                             <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDatePT(u.last_payment_date)}</td>
@@ -317,6 +323,9 @@ export default function NoRenovadosPage() {
                                         </div>
                                         {u.cancel_at_period_end && <ChipFinDePeriodo />}
                                     </div>
+                                    {u.pago_fallido && (
+                                        <div className="mt-2"><MotivoDelRechazo d={u.pago_fallido} sigueReintentando={u.pago_fallido.sigue_reintentando} /></div>
+                                    )}
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-400">
                                         <span>Fin: {fmtDatePT(u.current_period_end)}</span>
                                         <span>·</span>
