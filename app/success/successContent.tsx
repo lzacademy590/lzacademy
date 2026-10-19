@@ -641,8 +641,8 @@ const SuccessContent = () => {
                                                 </p>
                                                 <p className="sc-booked-sub">
                                                     {horarioDeGrupo.dias ? `Clases en vivo los ${horarioDeGrupo.dias}. ` : ""}
-                                                    Si tu grupo no reúne el mínimo de alumnos, te avisamos para que elijas otro
-                                                    horario de tu nivel o pases al siguiente inicio, sin pagar de nuevo.
+                                                    Si tu grupo no reúne el mínimo de alumnos, te pasamos al horario con lugar más
+                                                    cercano de tu nivel y te avisamos por correo; puedes cambiarlo sin pagar de nuevo.
                                                 </p>
                                                 {enlacePorCorreo && (
                                                     <p className="sc-booked-sub" style={{ marginTop: 6 }}>

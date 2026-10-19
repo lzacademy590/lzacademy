@@ -35,7 +35,7 @@ const preguntasFrecuentes: { pregunta: string; respuesta: React.ReactNode }[] = 
   {
     pregunta: "¿Qué pasa si mi horario de grupo no llega al mínimo de alumnos?",
     respuesta:
-      "No pierdes tu pago. Te avisamos por correo y eliges otro horario de tu nivel o pasar al siguiente inicio, sin pagar de nuevo, desde el enlace que te enviamos. Si no eliges, el día antes del inicio te pasamos al horario con lugar más cercano de tu nivel o, si no hay, al siguiente inicio.",
+      "No pierdes tu pago. La noche antes del inicio te pasamos al horario con lugar más cercano de tu nivel (o, si no hay, al siguiente inicio) y te avisamos por correo. Si prefieres otro horario de tu nivel o pasar al siguiente inicio, lo cambias desde el enlace del correo hasta 1 hora antes de tu primera clase, sin pagar de nuevo.",
   },
   {
     pregunta: "¿Puedo cancelar en cualquier momento?",

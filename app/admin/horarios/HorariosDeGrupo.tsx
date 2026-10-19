@@ -18,10 +18,13 @@
   ⚠️ "Mover a" solo ofrece horarios de la MISMA fecha, plan y nivel: cambiar de
   fecha también cambiaría su cohorte, y eso no lo toca este botón.
 
-  CIERRE (2026-10-16): 3 días antes del inicio. Un horario que no reúne el mínimo
-  ese día queda en "No abrió"; el botón "Avisar a los alumnos" les manda su
-  enlace a /mi-horario para elegir otro horario o el siguiente inicio, sin pagar
-  de nuevo. Quien no elige, el día antes del inicio pasa solo al más cercano.
+  CIERRE (2026-10-18): 1 hora antes del día de inicio (23:00, hora del Pacífico,
+  de la víspera). Antes eran 3 días, que eran 3 días sin vender. Un horario que
+  no reúne el mínimo a esa hora queda en "No abrió" y, en la pasada horaria
+  siguiente, el sistema pasa a cada alumno al horario con lugar más cercano (o
+  al siguiente inicio) y se lo avisa por correo; desde su enlace puede cambiarlo
+  hasta 1 hora antes de su primera clase. "Avisar a los alumnos" queda para
+  quienes se quedaron sin destino.
 */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -436,7 +439,7 @@ export function HorariosDeGrupo({
                                                                 {h.cierre && (
                                                                     <span className="text-[11px] text-gray-500">
                                                                         {/* Por la FECHA: un grupo confirmado antes de su cierre sigue abierto a cambios. */}
-                                                                        {hoy > h.cierre ? "Cerró" : "Cierra"} el {fmtDia(h.cierre)}
+                                                                        {hoy > h.cierre ? "Cerró" : "Cierra"} el {fmtDia(h.cierre)}, 11 p. m. (Pacífico)
                                                                     </span>
                                                                 )}
                                                                 <button
@@ -487,7 +490,7 @@ export function HorariosDeGrupo({
                                                                         No reunió el mínimo. {h.avisadoEn
                                                                             ? `Avisado el ${fmtDateTimePT(h.avisadoEn)}.`
                                                                             : "Sus alumnos todavía no han sido avisados."}
-                                                                        {" "}El día antes del inicio, quien no elija pasa solo al horario más cercano.
+                                                                        {" "}No había horario con lugar al que pasarlos: ábreles uno y avísales, o muévelos tú.
                                                                     </span>
                                                                     <Boton
                                                                         variante="peligro"
@@ -657,8 +660,10 @@ export function HorariosDeGrupo({
             )}
             <p className="text-xs text-gray-400 mt-3 px-1 leading-relaxed">
                 El alumno ve <strong>&ldquo;Necesita N alumnos más para abrir&rdquo;</strong>, nunca el total ni los nombres. Cada horario
-                <strong> cierra 3 días antes del inicio</strong>: si no llegó al mínimo, pulsa <strong>Avisar a los alumnos</strong> y
-                cada uno elige otro horario o el siguiente inicio desde su enlace, sin pagar de nuevo. También puedes moverlos tú con
+                <strong> cierra 1 hora antes del día de inicio</strong> (11 p. m. hora del Pacífico de la víspera): si no llegó al mínimo, el sistema pasa a cada alumno al horario
+                con lugar más cercano de su nivel (o al siguiente inicio) y se lo avisa por correo; desde su enlace puede cambiarlo
+                hasta 1 hora antes de su primera clase, sin pagar de nuevo. Si no había lugar, sus alumnos siguen aquí: pulsa
+                <strong> Avisar a los alumnos</strong> cuando les abras otro horario. También puedes moverlos tú con
                 <strong> Mover a</strong>. Si alguien pide su reembolso (garantía de 3 días), hazlo desde
                 <strong> Búsqueda › Reembolsar y cancelar</strong> y no desde el panel de Stripe: así deja de contar en el horario y no
                 se le cobra la renovación. <strong>Inactivo</strong> deja de ofrecerlo sin perder a quienes ya están dentro.

@@ -8,8 +8,9 @@
   Llega aquí desde /success ("Cambiar mi horario") o desde el correo que el admin
   manda cuando un horario no reúne el mínimo. Las reglas las pone el backend
   (horarios.service.js); esta pantalla solo enseña lo que él permite:
-    · antes del cierre (3 días antes del inicio) puede cambiar siempre;
-    · después, solo si su horario no abrió;
+    · antes del cierre (23:00 PT de la víspera del inicio) puede cambiar siempre;
+    · después, solo si su horario no abrió o si el sistema le reasignó (hasta
+      1 hora antes de su primera clase, también el día de inicio);
     · pasar al siguiente inicio no cuesta nada: lo pagado cubre ese grupo.
 */
 
@@ -46,6 +47,8 @@ interface Situacion {
     mismoInicio: Horario[];
     siguiente: { fecha: string; label: string; horarios: Horario[] } | null;
     eligeAntesDe: string | null;
+    /** Lo movió el sistema (o su grupo no abrió): cambia hasta 1 h antes de su clase. */
+    reasignado?: boolean;
 }
 
 type Estado = "cargando" | "listo" | "error";
@@ -199,7 +202,13 @@ export default function MiHorario() {
                 {a?.noAbrio && !datos.empezado && (
                     <p className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
                         Tu horario no reunió el mínimo de alumnos. Elige otro abajo, sin pagar de nuevo.
-                        {datos.eligeAntesDe && <> Si no eliges antes del <strong>{fechaLarga(datos.eligeAntesDe)}</strong>, te pasamos al horario con lugar más cercano de tu nivel.</>}
+                        {" "}Puedes elegir hasta 1 hora antes de tu primera clase.
+                    </p>
+                )}
+                {a && !a.noAbrio && datos.reasignado && (
+                    <p className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                        Tu horario anterior no reunió el mínimo de alumnos, así que te pasamos a este. Si prefieres otro, elígelo abajo
+                        hasta 1 hora antes de tu primera clase, sin pagar de nuevo.
                     </p>
                 )}
                 {a && !a.noAbrio && !a.confirmado && a.cierre && datos.puedeCambiar && (
