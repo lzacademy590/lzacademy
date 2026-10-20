@@ -26,7 +26,7 @@ interface HorarioDeClase {
     confirmado: boolean;
     lleno: boolean;
     restantes: number | null;
-    // Pasado el cierre (23:00 PT de la víspera del inicio) sin el mínimo: no abre. Llega
+    // El admin lo marcó como «No abre» (no hay cierre automático). Llega
     // DESHABILITADO, no se esconde, para que el formulario no crea que ese nivel
     // no tiene horarios y venda sin pedir uno.
     noAbrio?: boolean;
@@ -247,12 +247,12 @@ const PaymentForm = ({
         const minimos = new Set(horarios.map(h => h.minimo));
         const n = minimos.size === 1 ? horarios[0].minimo : null;
         const cuantos = n === null ? "el mínimo de alumnos" : `${n} ${n === 1 ? "alumno" : "alumnos"}`;
-        // Al cierre (23:00 PT de la víspera) el sistema le pasa al horario con
-        // lugar más cercano y se lo avisa; puede cambiarlo hasta 1 h antes de su clase.
+        // Si el admin decide que no abre, se le pasa al horario con lugar más
+        // cercano y se le avisa; puede cambiarlo hasta 1 h antes de su clase.
         const abiertos = horarios.filter(h => !h.noAbrio).length;
         return abiertos <= 1
-            ? `Este horario se abre con ${cuantos}. Si no los reúne, la noche antes del inicio te pasamos a un horario del siguiente inicio y te avisamos por correo, sin pagar de nuevo.`
-            : `Cada horario se abre con ${cuantos}. Si el tuyo no los reúne, la noche antes del inicio te pasamos al horario con lugar más cercano de tu nivel y te avisamos por correo. Puedes cambiarlo hasta 1 hora antes de tu primera clase, sin pagar de nuevo.`;
+            ? `Este horario se abre con ${cuantos}. Si no abre, te pasamos a un horario del siguiente inicio y te avisamos por correo, sin pagar de nuevo.`
+            : `Cada horario se abre con ${cuantos}. Si el tuyo no abre, te pasamos al horario con lugar más cercano de tu nivel y te avisamos por correo. Puedes cambiarlo hasta 1 hora antes de tu primera clase, sin pagar de nuevo.`;
     })();
 
     const avisarHorario = (mensaje: string) => {
