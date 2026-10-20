@@ -8,7 +8,7 @@
   Llega aquí desde /success ("Cambiar mi horario") o desde el correo que el admin
   manda cuando un horario no reúne el mínimo. Las reglas las pone el backend
   (horarios.service.js); esta pantalla solo enseña lo que él permite:
-    · antes del cierre (23:00 PT de la víspera del inicio) puede cambiar siempre;
+    · mientras el admin no decida su grupo puede cambiar siempre (no hay cierre automático);
     · después, solo si su horario no abrió o si el sistema le reasignó (hasta
       1 hora antes de su primera clase, también el día de inicio);
     · pasar al siguiente inicio no cuesta nada: lo pagado cubre ese grupo.
@@ -211,9 +211,9 @@ export default function MiHorario() {
                         hasta 1 hora antes de tu primera clase, sin pagar de nuevo.
                     </p>
                 )}
-                {a && !a.noAbrio && !a.confirmado && a.cierre && datos.puedeCambiar && (
+                {a && !a.noAbrio && !a.confirmado && datos.puedeCambiar && (
                     <p className="mt-4 text-sm text-zinc-600">
-                        Tu grupo se confirma el <strong>{fechaLarga(a.cierre)}</strong> si reúne {a.minimo} alumnos. Hasta entonces puedes cambiarte.
+                        Tu grupo se confirma al reunir {a.minimo} alumnos. Hasta entonces puedes cambiarte.
                     </p>
                 )}
             </section>
@@ -222,13 +222,13 @@ export default function MiHorario() {
                 <p className="mt-5 text-sm text-zinc-600">
                     {datos.empezado
                         ? "Tu grupo ya empezó, así que el horario ya no se puede cambiar desde aquí. Si lo necesitas, escríbenos."
-                        : "Tu grupo ya está confirmado: a partir del cierre los horarios no se cambian, para no dejar sin lugar a nadie. Si lo necesitas, escríbenos."}
+                        : "Tu grupo ya está confirmado: el horario ya no se cambia, para no dejar sin lugar a nadie. Si lo necesitas, escríbenos."}
                 </p>
             )}
 
             {datos.puedeCambiar && datos.inicioYaMovido && (
                 <p className="mt-5 text-sm text-zinc-600">
-                    Ya usaste tu cambio al siguiente inicio en esta compra. Hasta el cierre puedes cambiar de horario dentro de tu misma fecha.
+                    Ya usaste tu cambio al siguiente inicio en esta compra. Hasta que tu grupo se confirme puedes cambiar de horario dentro de tu misma fecha.
                 </p>
             )}
 
