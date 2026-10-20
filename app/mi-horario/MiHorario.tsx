@@ -8,8 +8,9 @@
   Llega aquí desde /success ("Cambiar mi horario") o desde el correo que el admin
   manda cuando un horario no reúne el mínimo. Las reglas las pone el backend
   (horarios.service.js); esta pantalla solo enseña lo que él permite:
-    · antes del cierre (3 días antes del inicio) puede cambiar siempre;
-    · después, solo si su horario no abrió;
+    · mientras el admin no decida su grupo puede cambiar siempre (no hay cierre automático);
+    · después, solo si su horario no abrió o si el sistema le reasignó (hasta
+      1 hora antes de su primera clase, también el día de inicio);
     · pasar al siguiente inicio no cuesta nada: lo pagado cubre ese grupo.
 */
 
@@ -46,6 +47,8 @@ interface Situacion {
     mismoInicio: Horario[];
     siguiente: { fecha: string; label: string; horarios: Horario[] } | null;
     eligeAntesDe: string | null;
+    /** Lo movió el sistema (o su grupo no abrió): cambia hasta 1 h antes de su clase. */
+    reasignado?: boolean;
 }
 
 type Estado = "cargando" | "listo" | "error";
@@ -199,12 +202,18 @@ export default function MiHorario() {
                 {a?.noAbrio && !datos.empezado && (
                     <p className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
                         Tu horario no reunió el mínimo de alumnos. Elige otro abajo, sin pagar de nuevo.
-                        {datos.eligeAntesDe && <> Si no eliges antes del <strong>{fechaLarga(datos.eligeAntesDe)}</strong>, te pasamos al horario con lugar más cercano de tu nivel.</>}
+                        {" "}Puedes elegir hasta 1 hora antes de tu primera clase.
                     </p>
                 )}
-                {a && !a.noAbrio && !a.confirmado && a.cierre && datos.puedeCambiar && (
+                {a && !a.noAbrio && datos.reasignado && (
+                    <p className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                        Tu horario anterior no reunió el mínimo de alumnos, así que te pasamos a este. Si prefieres otro, elígelo abajo
+                        hasta 1 hora antes de tu primera clase, sin pagar de nuevo.
+                    </p>
+                )}
+                {a && !a.noAbrio && !a.confirmado && datos.puedeCambiar && (
                     <p className="mt-4 text-sm text-zinc-600">
-                        Tu grupo se confirma el <strong>{fechaLarga(a.cierre)}</strong> si reúne {a.minimo} alumnos. Hasta entonces puedes cambiarte.
+                        Tu grupo se confirma al reunir {a.minimo} alumnos. Hasta entonces puedes cambiarte.
                     </p>
                 )}
             </section>
@@ -213,13 +222,13 @@ export default function MiHorario() {
                 <p className="mt-5 text-sm text-zinc-600">
                     {datos.empezado
                         ? "Tu grupo ya empezó, así que el horario ya no se puede cambiar desde aquí. Si lo necesitas, escríbenos."
-                        : "Tu grupo ya está confirmado: a partir del cierre los horarios no se cambian, para no dejar sin lugar a nadie. Si lo necesitas, escríbenos."}
+                        : "Tu grupo ya está confirmado: el horario ya no se cambia, para no dejar sin lugar a nadie. Si lo necesitas, escríbenos."}
                 </p>
             )}
 
             {datos.puedeCambiar && datos.inicioYaMovido && (
                 <p className="mt-5 text-sm text-zinc-600">
-                    Ya usaste tu cambio al siguiente inicio en esta compra. Hasta el cierre puedes cambiar de horario dentro de tu misma fecha.
+                    Ya usaste tu cambio al siguiente inicio en esta compra. Hasta que tu grupo se confirme puedes cambiar de horario dentro de tu misma fecha.
                 </p>
             )}
 

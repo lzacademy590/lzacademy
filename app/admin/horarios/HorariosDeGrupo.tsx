@@ -18,10 +18,12 @@
   ⚠️ "Mover a" solo ofrece horarios de la MISMA fecha, plan y nivel: cambiar de
   fecha también cambiaría su cohorte, y eso no lo toca este botón.
 
-  CIERRE (2026-10-16): 3 días antes del inicio. Un horario que no reúne el mínimo
-  ese día queda en "No abrió"; el botón "Avisar a los alumnos" les manda su
-  enlace a /mi-horario para elegir otro horario o el siguiente inicio, sin pagar
-  de nuevo. Quien no elige, el día antes del inicio pasa solo al más cercano.
+  CIERRE MANUAL (2026-10-19): ningún horario se cierra solo. Sigue a la venta
+  hasta su inicio y el admin decide: «Abrir grupo» (confirmado aunque no llegue
+  al mínimo) o «No abre» (sus alumnos pasan en el acto al horario con lugar más
+  cercano, o al siguiente inicio, y reciben un correo; desde su enlace pueden
+  cambiarlo hasta 1 hora antes de su primera clase). Sin decisión, el grupo se
+  da tal cual. "Avisar a los alumnos" queda para quienes se quedaron sin destino.
 */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -72,9 +74,11 @@ interface Horario {
     maximo: number | null;
     enabled: boolean;
     inscritos?: number;
-    cierre?: string;
+    cierre?: string | null;
     noAbrio?: boolean;
     confirmado?: boolean;
+    /** Lo que decidió el admin: no hay cierre automático. */
+    decision?: "abre" | "no_abre" | null;
     avisadoEn?: string | null;
     alumnos?: Alumno[];
 }
@@ -127,6 +131,7 @@ export function HorariosDeGrupo({
     // plataforma todavía no recibe ese cambio: hay que actualizarle la cohorte allí.
     const [cambiosDeInicio, setCambiosDeInicio] = useState<CambioDeInicio[]>([]);
     const [avisando, setAvisando] = useState<string | null>(null);
+    const [decidiendo, setDecidiendo] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
     // Solo el fallo de LECTURA se queda a la vista: sin él la lista vacía se
     // leería como "no hay horarios". Los de escritura van por aviso flotante.
@@ -278,6 +283,46 @@ export function HorariosDeGrupo({
         }
     };
 
+    /*
+      «Abrir grupo», «No abre» o deshacer. «No abre» mueve a sus alumnos en el
+      acto y les manda un correo, así que pregunta antes.
+    */
+    const decidir = async (h: Horario, decision: "abre" | "no_abre" | null) => {
+        const n = h.inscritos ?? 0;
+        if (decision === "no_abre") {
+            const ok = await confirmar({
+                titulo: `¿El grupo de las ${horaLegible(h.hora_pt)} no abre?`,
+                mensaje: n
+                    ? `Deja de venderse y ${n === 1 ? "su alumno pasa" : `sus ${n} alumnos pasan`} ahora mismo al horario con lugar más cercano de su nivel (o al siguiente inicio). Cada uno recibe un correo y puede cambiarlo desde su enlace hasta 1 hora antes de su primera clase.`
+                    : "Deja de venderse. No tiene alumnos que mover.",
+                confirmar: "No abre",
+                peligro: true,
+            });
+            if (!ok) return;
+        }
+        setDecidiendo(h.id);
+        try {
+            const res = await fetch(`${base}/config/horarios-de-clase/${encodeURIComponent(h.id)}/decision`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+                body: JSON.stringify({ decision }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `Error (${res.status})`);
+            await cargar();
+            const r = data.reasignacion;
+            if (decision === "abre") toast.exito(`Grupo de las ${horaLegible(h.hora_pt)} abierto.`);
+            else if (decision === null) toast.exito("Decisión deshecha: el horario vuelve a estar sin decidir.");
+            else if (r && (r.sinDestino || r.errores)) {
+                toast.error(`${r.movidos} ${r.movidos === 1 ? "alumno movido" : "alumnos movidos"} · ${r.sinDestino + r.errores} sin horario con lugar: avísales o muévelos tú.`);
+            } else toast.exito(r?.movidos ? `${r.movidos} ${r.movidos === 1 ? "alumno movido y avisado" : "alumnos movidos y avisados"}.` : "Marcado como «No abre».");
+        } catch (e) {
+            toast.error(`No se guardó la decisión: ${e instanceof Error ? e.message : "error de red"}`);
+        } finally {
+            setDecidiendo(null);
+        }
+    };
+
     const avisar = async (h: Horario) => {
         const n = h.inscritos ?? 0;
         const ok = await confirmar({
@@ -419,8 +464,9 @@ export function HorariosDeGrupo({
                                             <ul className="space-y-2">
                                                 {lista.map(h => {
                                                     const inscritos = h.inscritos ?? 0;
-                                                    // Pasado el cierre, "confirmado" lo congela el servidor.
+                                                    // Abierto a mano por el admin, o ya con el mínimo.
                                                     const abre = h.confirmado ?? inscritos >= h.minimo;
+                                                    const empezo = hoy >= h.start_date;
                                                     const lleno = h.maximo !== null && inscritos >= h.maximo;
                                                     // Destinos para "Mover a": misma fecha, plan y nivel.
                                                     const destinos = horarios.filter(x =>
@@ -429,16 +475,11 @@ export function HorariosDeGrupo({
                                                         <li key={h.id} className={`rounded-xl border px-3 py-3 ${h.enabled ? "border-gray-200" : "border-dashed border-gray-200 bg-gray-50 opacity-70"}`}>
                                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                                                 <span className="text-sm font-semibold text-gray-900 w-28">{horaLegible(h.hora_pt)}</span>
-                                                                {h.noAbrio ? <Chip tono="rojo" conPunto>No abrió</Chip>
+                                                                {h.noAbrio ? <Chip tono="rojo" conPunto>No abre</Chip>
                                                                     : lleno ? <Chip tono="gris" conPunto>Lleno</Chip>
+                                                                    : h.decision === "abre" ? <Chip tono="verde" conPunto>Abierto</Chip>
                                                                     : abre ? <Chip tono="verde" conPunto>Confirmado</Chip>
                                                                     : <Chip tono="ambar" conPunto>{`Faltan ${h.minimo - inscritos}`}</Chip>}
-                                                                {h.cierre && (
-                                                                    <span className="text-[11px] text-gray-500">
-                                                                        {/* Por la FECHA: un grupo confirmado antes de su cierre sigue abierto a cambios. */}
-                                                                        {hoy > h.cierre ? "Cerró" : "Cierra"} el {fmtDia(h.cierre)}
-                                                                    </span>
-                                                                )}
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setAbierto(abierto === h.id ? null : h.id)}
@@ -481,13 +522,46 @@ export function HorariosDeGrupo({
                                                                 </span>
                                                             </div>
 
+                                                            {!empezo && (
+                                                                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+                                                                    <span className="text-xs text-gray-600 mr-auto">
+                                                                        {h.decision === "abre"
+                                                                            ? "Lo abriste tú: se da aunque no llegue al mínimo."
+                                                                            : h.decision === "no_abre"
+                                                                                ? "Marcado como «No abre»: ya no se vende."
+                                                                                : abre
+                                                                                    ? "Sin decidir · ya reúne el mínimo. Se da tal cual si no decides nada."
+                                                                                    : `Sin decidir · faltan ${h.minimo - inscritos} para el mínimo. Si no decides nada, se da tal cual.`}
+                                                                    </span>
+                                                                    {h.decision ? (
+                                                                        <Boton variante="secundario" tamano="sm" onClick={() => decidir(h, null)}
+                                                                            disabled={sucio} cargando={decidiendo === h.id}
+                                                                            title={sucio ? "Guarda primero los cambios" : "Vuelve a dejarlo sin decidir. No devuelve a nadie a este grupo."}>
+                                                                            Deshacer
+                                                                        </Boton>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Boton variante="secundario" tamano="sm" onClick={() => decidir(h, "abre")}
+                                                                                disabled={sucio || decidiendo === h.id} title={sucio ? "Guarda primero los cambios" : undefined}>
+                                                                                Abrir grupo
+                                                                            </Boton>
+                                                                            <Boton variante="peligro" tamano="sm" onClick={() => decidir(h, "no_abre")}
+                                                                                disabled={sucio || decidiendo === h.id} cargando={decidiendo === h.id}
+                                                                                title={sucio ? "Guarda primero los cambios" : undefined}>
+                                                                                No abre
+                                                                            </Boton>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
                                                             {h.noAbrio && inscritos > 0 && (
                                                                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
                                                                     <span className="text-xs text-red-800">
-                                                                        No reunió el mínimo. {h.avisadoEn
+                                                                        No abre. {h.avisadoEn
                                                                             ? `Avisado el ${fmtDateTimePT(h.avisadoEn)}.`
                                                                             : "Sus alumnos todavía no han sido avisados."}
-                                                                        {" "}El día antes del inicio, quien no elija pasa solo al horario más cercano.
+                                                                        {" "}No había horario con lugar al que pasarlos: ábreles uno y avísales, o muévelos tú.
                                                                     </span>
                                                                     <Boton
                                                                         variante="peligro"
@@ -657,8 +731,11 @@ export function HorariosDeGrupo({
             )}
             <p className="text-xs text-gray-400 mt-3 px-1 leading-relaxed">
                 El alumno ve <strong>&ldquo;Necesita N alumnos más para abrir&rdquo;</strong>, nunca el total ni los nombres. Cada horario
-                <strong> cierra 3 días antes del inicio</strong>: si no llegó al mínimo, pulsa <strong>Avisar a los alumnos</strong> y
-                cada uno elige otro horario o el siguiente inicio desde su enlace, sin pagar de nuevo. También puedes moverlos tú con
+                <strong> no se cierra solo</strong>: sigue a la venta hasta su inicio y tú decides. <strong>Abrir grupo</strong> lo confirma
+                aunque no llegue al mínimo; <strong>No abre</strong> deja de venderlo y pasa a cada alumno al horario con lugar más cercano
+                de su nivel (o al siguiente inicio), con un correo; desde su enlace puede cambiarlo hasta 1 hora antes de su primera
+                clase, sin pagar de nuevo. Si no decides nada, el grupo se da tal cual. Si no había lugar, sus alumnos siguen aquí:
+                pulsa <strong>Avisar a los alumnos</strong> cuando les abras otro horario. También puedes moverlos tú con
                 <strong> Mover a</strong>. Si alguien pide su reembolso (garantía de 3 días), hazlo desde
                 <strong> Búsqueda › Reembolsar y cancelar</strong> y no desde el panel de Stripe: así deja de contar en el horario y no
                 se le cobra la renovación. <strong>Inactivo</strong> deja de ofrecerlo sin perder a quienes ya están dentro.

@@ -90,10 +90,10 @@ const DEFINICIONES: Definicion[] = [
   {
     clave: "enRiesgo",
     titulo: "Grupos por debajo del mínimo",
-    explicacion: "Si no se llenan antes del cierre, no abren y hay que mover a sus alumnos.",
+    explicacion: "No se cierran solos: decide en Horarios si los abres igual o si no abren.",
     tono: "ambar",
     accion: { label: "Ir a horarios", href: "/admin/horarios" },
-    items: (p) => lista(p.enRiesgo).map(grupoItem((g) => `faltan ${g.faltan} · cierra el ${fmtDia(g.cierre)}`)),
+    items: (p) => lista(p.enRiesgo).map(grupoItem((g) => `faltan ${g.faltan} · empieza el ${fmtDia(g.start_date)}`)),
   },
   {
     clave: "sinHorario",
