@@ -6,12 +6,13 @@ import {
   Section,
   VERSIONES_PLATAFORMA,
 } from "../../_components/legal";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Normas de la Comunidad y de Comportamiento",
   description:
     "Cómo convivir en la plataforma del Método 590: preguntas bajo los videos, mensajes, perfil, clases en vivo y el trato con tu instructora.",
-  alternates: { canonical: "https://lz-englishacademy.com/legal/plataforma/normas-de-comunidad" },
+  alternates: { canonical: `${URL_DEL_SITIO}/legal/plataforma/normas-de-comunidad` },
 };
 
 /*

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { IndiceLegal, TarjetaDocumento } from "./_components/legal";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Centro legal — Sitio web",
   description:
     "Términos, privacidad y reembolsos del sitio web de LZ English Academy, donde te informas e inscribes.",
-  alternates: { canonical: "https://lz-englishacademy.com/legal" },
+  alternates: { canonical: `${URL_DEL_SITIO}/legal` },
 };
 
 export default function LegalSitioPage() {

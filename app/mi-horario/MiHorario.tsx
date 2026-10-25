@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { fechaLarga, infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
@@ -149,7 +150,7 @@ export default function MiHorario() {
                         <button onClick={cargar} className="rounded-xl bg-falu-red-700 px-4 py-2 text-sm font-semibold text-white">Reintentar</button>
                     )}
                     <a href="https://chat.whatsapp.com/HhAvLoPoLwf1JsX0aWtnX1" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700">Escríbenos por WhatsApp</a>
-                    <a href="mailto:info@lz-englishacademy.com" className="rounded-xl px-4 py-2 text-sm font-semibold text-zinc-500 underline">o por correo</a>
+                    <a href={`mailto:${CORREO_DE_CONTACTO}`} className="rounded-xl px-4 py-2 text-sm font-semibold text-zinc-500 underline">o por correo</a>
                 </div>
             </Marco>
         );

@@ -3,18 +3,19 @@ import Link from "next/link";
 import { Container } from "../components/Container";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Ciencia detrás del Método 590",
   description:
     "Descubre la ciencia cognitiva detrás del Método 590: ritmo, repetición y consistencia para construir fluidez real en inglés.",
-  alternates: { canonical: "https://lz-englishacademy.com/ciencia" },
+  alternates: { canonical: `${URL_DEL_SITIO}/ciencia` },
   openGraph: {
     title: "Ciencia detrás del Método 590 | LZ English Academy",
     description:
       "Descubre la ciencia cognitiva detrás del Método 590: ritmo, repetición y consistencia para construir fluidez real en inglés.",
-    url: "https://lz-englishacademy.com/ciencia",
-    images: [{ url: "https://lz-englishacademy.com/og-image.png", width: 1200, height: 630 }],
+    url: `${URL_DEL_SITIO}/ciencia`,
+    images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
   },
 };
 

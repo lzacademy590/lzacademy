@@ -1,4 +1,5 @@
 "use client";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 interface ContactModalProps {
   open: boolean;
@@ -59,7 +60,7 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
 
         {/* Email */}
         <a
-          href="mailto:info@lz-englishacademy.com"
+          href={`mailto:${CORREO_DE_CONTACTO}`}
           className="flex items-center justify-center gap-3 w-full rounded-2xl px-6 py-4 text-white font-extrabold text-[15px] mb-6 transition hover:opacity-90 active:scale-95"
           style={{ backgroundColor: "#C0353E" }}
         >

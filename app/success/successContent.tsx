@@ -7,6 +7,7 @@ import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import { medirCompra } from "@/app/lib/analitica";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 function ptStringToDate(datetimePt: string): Date {
     const [datePart, timePart] = datetimePt.split("T");
@@ -781,7 +782,7 @@ const SuccessContent = () => {
 
                                     <p className="sc-footer">
                                         ¿Necesitas ayuda? Escríbenos a{" "}
-                                        <a href="mailto:info@lz-englishacademy.com">info@lz-englishacademy.com</a>
+                                        <a href={`mailto:${CORREO_DE_CONTACTO}`}>{CORREO_DE_CONTACTO}</a>
                                         {" "}con tu referencia de pago.
                                     </p>
                                 </>

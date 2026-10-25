@@ -3,18 +3,19 @@ import Link from "next/link";
 import { Container } from "../components/Container";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Cómo funciona el Método 590",
   description:
     "Descubre cómo funciona el Método 590: cinco sesiones diarias estructuradas para aprender inglés de forma natural y eficiente en 90 días.",
-  alternates: { canonical: "https://lz-englishacademy.com/como-funciona" },
+  alternates: { canonical: `${URL_DEL_SITIO}/como-funciona` },
   openGraph: {
     title: "Cómo funciona el Método 590 | LZ English Academy",
     description:
       "Descubre cómo funciona el Método 590: cinco sesiones diarias estructuradas para aprender inglés de forma natural y eficiente en 90 días.",
-    url: "https://lz-englishacademy.com/como-funciona",
-    images: [{ url: "https://lz-englishacademy.com/og-image.png", width: 1200, height: 630 }],
+    url: `${URL_DEL_SITIO}/como-funciona`,
+    images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
   },
 };
 

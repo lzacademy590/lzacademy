@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Container } from "../components/Container";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 const WHATSAPP_URL = "https://chat.whatsapp.com/HhAvLoPoLwf1JsX0aWtnX1";
 
@@ -66,8 +67,8 @@ const preguntasFrecuentes: { pregunta: string; respuesta: React.ReactNode }[] = 
     respuesta: (
       <>
         El Método 590 está diseñado para llevarte de cero a un nivel B1 conversacional en 90 días si sigues la rutina completa. Los resultados dependen de tu consistencia — quienes completan las 5 sesiones diarias ven progreso real desde las primeras semanas. Si tienes dudas sobre si es para ti, puedes escribirnos a{" "}
-        <a href="mailto:info@lz-englishacademy.com" className="font-semibold text-falu-red-800 hover:text-falu-red-900 underline">
-          info@lz-englishacademy.com
+        <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-semibold text-falu-red-800 hover:text-falu-red-900 underline">
+          {CORREO_DE_CONTACTO}
         </a>
         .
       </>
@@ -206,7 +207,7 @@ export default function PreguntasFrecuentes() {
             <p className="text-sm text-zinc-500">
               ¿Tienes otra pregunta?{" "}
               <a
-                href="mailto:info@lz-englishacademy.com"
+                href={`mailto:${CORREO_DE_CONTACTO}`}
                 className="font-semibold text-falu-red-800 hover:text-falu-red-900 transition-colors"
               >
                 Escríbenos directamente →

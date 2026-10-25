@@ -6,12 +6,13 @@ import {
   Section,
   VERSIONES_PLATAFORMA,
 } from "../../_components/legal";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Política de Privacidad de la Plataforma",
   description:
     "Qué datos trata la plataforma de aprendizaje del Método 590 (voz, fotos, textos, uso), con quién los compartimos, uso de inteligencia artificial y tus derechos.",
-  alternates: { canonical: "https://lz-englishacademy.com/legal/plataforma/privacidad" },
+  alternates: { canonical: `${URL_DEL_SITIO}/legal/plataforma/privacidad` },
 };
 
 /*

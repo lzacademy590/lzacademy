@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import GoogleAnalytics from "./components/GoogleAnalytics";
 import { SiteWrapper } from "./components/SiteWrapper";
 import { Playfair_Display, Barlow_Condensed , Charmonman} from "next/font/google";
+import { URL_DEL_SITIO, CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -19,7 +20,7 @@ const barlow = Barlow_Condensed({
   display: "swap",
 });
 
-const BASE_URL = "https://lz-englishacademy.com";
+const BASE_URL = URL_DEL_SITIO;
 
 // ─── Metadata base ────────────────────────────────────────────────────────────
 export const metadata: Metadata = {
@@ -47,6 +48,12 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+  },
+  // Search Console del Gmail del negocio (lzacademy590@gmail.com). El DNS de
+  // lz-englishacademy.com está en una cuenta de Vercel ajena, así que se
+  // verifica con la meta. Hace falta para el cambio de dirección a lainz590.com.
+  verification: {
+    google: "c8llODH7S1J4FwWM_ocx37AfHvTuOHdWut4V5-xAUlE",
   },
 };
 
@@ -77,7 +84,7 @@ function OrganizationSchema() {
     ],
     contactPoint: {
       "@type": "ContactPoint",
-      email: "info@lz-englishacademy.com",
+      email: CORREO_DE_CONTACTO,
       contactType: "customer support",
       availableLanguage: "Spanish",
     },
