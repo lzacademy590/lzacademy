@@ -4,18 +4,19 @@ import Link from "next/link";
 import { Container } from "../components/Container";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "La historia de Loren Laínez | Método 590",
   description:
     "Conoce a Loren Laínez, fundadora del Método 590. Descubre su historia real de aprendizaje intensivo de inglés en 3 meses y cómo creó un método efectivo y estructurado.",
-  alternates: { canonical: "https://lz-englishacademy.com/historia" },
+  alternates: { canonical: `${URL_DEL_SITIO}/historia` },
   openGraph: {
     title: "La historia de Loren Laínez | Método 590",
     description:
       "Conoce a Loren Laínez, fundadora del Método 590. Descubre su historia real de aprendizaje intensivo de inglés en 3 meses y cómo creó un método efectivo y estructurado.",
-    url: "https://lz-englishacademy.com/historia",
-    images: [{ url: "https://lz-englishacademy.com/creadora.jpeg" }],
+    url: `${URL_DEL_SITIO}/historia`,
+    images: [{ url: `${URL_DEL_SITIO}/creadora.jpeg` }],
   },
 };
 

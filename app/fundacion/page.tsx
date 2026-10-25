@@ -2,18 +2,19 @@ import Link from "next/link";
 import { Container } from "../components/Container";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata = {
     title: "Nuestro propósito",
     description:
         "Un porcentaje de cada inscripción al Método 590 se destina a la Fundación LZ para financiar la educación de niños y niñas en situación vulnerable en Honduras.",
-    alternates: { canonical: "https://lz-englishacademy.com/fundacion" },
+    alternates: { canonical: `${URL_DEL_SITIO}/fundacion` },
     openGraph: {
         title: "Nuestro propósito | LZ English Academy",
         description:
             "Un porcentaje de cada inscripción al Método 590 se destina a la Fundación LZ para financiar la educación de niños y niñas en situación vulnerable en Honduras.",
-        url: "https://lz-englishacademy.com/fundacion",
-        images: [{ url: "https://lz-englishacademy.com/og-image.png", width: 1200, height: 630 }],
+        url: `${URL_DEL_SITIO}/fundacion`,
+        images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
     },
 };
 

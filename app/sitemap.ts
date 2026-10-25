@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
-const BASE = "https://lz-englishacademy.com";
+const BASE = URL_DEL_SITIO;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

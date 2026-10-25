@@ -14,6 +14,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { authHeaders } from "../_utils/auth";
 import { Boton } from "./boton";
 import { useToast } from "./toast";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 export type GrupoDeAlumnos = "pagosFallidos" | "cancelanPronto" | "accesosPendientes" | "sinHorario";
 
@@ -216,7 +217,7 @@ export function EscribirCorreo({
               <p className="text-amber-700 break-words">Sin enviar: {envio.omitidos.map((o) => `${o.email} (${o.motivo})`).join(", ")}</p>
             )}
             {error && <p className="text-amber-700">{error}</p>}
-            <p className="text-xs text-gray-400">Las respuestas llegan a info@lz-englishacademy.com.</p>
+            <p className="text-xs text-gray-400">Las respuestas llegan a {CORREO_DE_CONTACTO}.</p>
             <div className="flex justify-end pt-1"><Boton variante={activo ? "secundario" : "primario"} onClick={onCerrar}>{activo ? "Cerrar" : "Listo"}</Boton></div>
           </div>
         ) : (

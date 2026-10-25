@@ -1,17 +1,18 @@
 import InterestForm from "../components/InterestForm";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata = {
     // Sin la marca: la pone el `template` del layout raíz ("%s | LZ English Academy").
     title: "Da el primer paso",
     description:
         "Regístrate y recibe información detallada sobre el Método 590. Sin costo, sin compromiso.",
-    alternates: { canonical: "https://lz-englishacademy.com/interes" },
+    alternates: { canonical: `${URL_DEL_SITIO}/interes` },
     openGraph: {
         title: "Da el primer paso — LZ English Academy",
         description:
             "Regístrate y recibe información detallada sobre el Método 590. Sin costo, sin compromiso.",
-        url: "https://lz-englishacademy.com/interes",
-        images: [{ url: "https://lz-englishacademy.com/og-image.png", width: 1200, height: 630 }],
+        url: `${URL_DEL_SITIO}/interes`,
+        images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
     },
 };
 

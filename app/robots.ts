@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -9,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin/", "/api/"],
       },
     ],
-    sitemap: "https://lz-englishacademy.com/sitemap.xml",
+    sitemap: `${URL_DEL_SITIO}/sitemap.xml`,
   };
 }

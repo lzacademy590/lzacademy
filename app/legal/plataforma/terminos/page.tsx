@@ -7,12 +7,13 @@ import {
   URL_SUSCRIPCION_PLATAFORMA,
   VERSIONES_PLATAFORMA,
 } from "../../_components/legal";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Términos de Uso de la Plataforma",
   description:
     "Términos de uso de la plataforma de aprendizaje del Método 590: cuenta, avance del curso, plan gratis, prueba, clases en vivo, monedas, contenido del usuario y responsabilidad.",
-  alternates: { canonical: "https://lz-englishacademy.com/legal/plataforma/terminos" },
+  alternates: { canonical: `${URL_DEL_SITIO}/legal/plataforma/terminos` },
 };
 
 /*
