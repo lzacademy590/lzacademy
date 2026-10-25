@@ -11,6 +11,7 @@ import { medirInicioDePago } from "@/app/lib/analitica";
 import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
 import { infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 /*
   Horario de GRUPO por cohorte y nivel (2026-10-16). El backend NO manda el total
@@ -1029,7 +1030,7 @@ const PaymentForm = ({
                                         </p>
                                         <p className="mt-3">
                                             Escríbenos a{" "}
-                                            <a href="mailto:info@lz-englishacademy.com" className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">info@lz-englishacademy.com</a>{" "}
+                                            <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">{CORREO_DE_CONTACTO}</a>{" "}
                                             y te ayudamos.
                                         </p>
                                         <div className="mt-5">

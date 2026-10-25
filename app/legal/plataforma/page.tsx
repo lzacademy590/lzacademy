@@ -4,12 +4,13 @@ import {
   TarjetaDocumento,
   URL_SUSCRIPCION_PLATAFORMA,
 } from "../_components/legal";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Centro legal — Plataforma",
   description:
     "Términos, privacidad y normas de la comunidad de la plataforma de aprendizaje del Método 590.",
-  alternates: { canonical: "https://lz-englishacademy.com/legal/plataforma" },
+  alternates: { canonical: `${URL_DEL_SITIO}/legal/plataforma` },
 };
 
 export default function LegalPlataformaPage() {

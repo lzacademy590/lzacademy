@@ -7,6 +7,7 @@ import { planesDeCheckout, descripcionDeCheckout } from "@/app/lib/plans";
 import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCatalogo";
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
+import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 interface StudentData {
   full_name: string;
@@ -593,7 +594,7 @@ export default function PagoEstudiantesPage() {
                   <span className="font-semibold text-zinc-700">Suscripción:</span>{" "}
                   se te cobrará {precioDelPlan} cada 4 semanas de forma automática hasta que canceles.
                   Cancela cuando quieras escribiendo a{" "}
-                  <a href="mailto:info@lz-englishacademy.com" className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">info@lz-englishacademy.com</a>;
+                  <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">{CORREO_DE_CONTACTO}</a>;
                   conservas acceso hasta el final del periodo ya pagado.
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
@@ -708,7 +709,7 @@ export default function PagoEstudiantesPage() {
                   </p>
                   <p className="mt-3">
                     Escríbenos a{" "}
-                    <a href="mailto:info@lz-englishacademy.com" className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">info@lz-englishacademy.com</a>{" "}
+                    <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">{CORREO_DE_CONTACTO}</a>{" "}
                     y te ayudamos.
                   </p>
                   <div className="mt-5">
@@ -735,7 +736,7 @@ export default function PagoEstudiantesPage() {
                   )}
                   <p className="mt-2">
                     Para no pagar ambos planes, cancela tu suscripción actual escribiéndonos a{" "}
-                    <a href="mailto:info@lz-englishacademy.com" className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">info@lz-englishacademy.com</a>.
+                    <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-semibold text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">{CORREO_DE_CONTACTO}</a>.
                     Si continúas, se te cobrará el plan Personalizado ahora.
                   </p>
                   <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">

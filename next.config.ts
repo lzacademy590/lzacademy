@@ -1,4 +1,23 @@
 import type { NextConfig } from "next";
+import { URL_DEL_SITIO } from "./app/lib/sitio";
+
+/*
+  La mudanza de dominio (de lz-englishacademy.com a lainz590.com).
+
+  HOST_DEL_SITIO sale de URL_DEL_SITIO (app/lib/sitio.ts): su www redirige al
+  dominio sin www.
+
+  El dominio VIEJO solo redirige con REDIRIGIR_DOMINIO_VIEJO=1 en el entorno de
+  Vercel. ⚠️ Se enciende el DÍA DEL CORTE, cuando lainz590.com ya sirve este
+  proyecto: encendida antes, el sitio que vive en el dominio viejo mandaría a
+  todo el mundo a un dominio que aún no lo sirve. Y nunca redirige al mismo host
+  del que viene (con URL_DEL_SITIO todavía en el dominio viejo sería un bucle).
+  Es permanente (308), que es lo que pide el cambio de dirección de Search Console.
+*/
+const HOST_DEL_SITIO = new URL(URL_DEL_SITIO).host;
+const DOMINIO_VIEJO = "lz-englishacademy.com";
+const redirigirDominioViejo =
+  process.env.REDIRIGIR_DOMINIO_VIEJO === "1" && HOST_DEL_SITIO !== DOMINIO_VIEJO;
 
 const nextConfig: NextConfig = {
   /*
@@ -14,13 +33,22 @@ const nextConfig: NextConfig = {
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   async redirects() {
     return [
-      // www → non-www (301 permanent)
+      // www → sin www (308 permanente)
       {
         source: "/:path*",
-        has: [{ type: "host", value: "www.lz-englishacademy.com" }],
-        destination: "https://lz-englishacademy.com/:path*",
+        has: [{ type: "host", value: `www.${HOST_DEL_SITIO}` }],
+        destination: `${URL_DEL_SITIO}/:path*`,
         permanent: true,
       },
+      // Dominio viejo → dominio nuevo, misma ruta (apagado hasta el corte)
+      ...(redirigirDominioViejo
+        ? [DOMINIO_VIEJO, `www.${DOMINIO_VIEJO}`].map((host) => ({
+            source: "/:path*",
+            has: [{ type: "host" as const, value: host }],
+            destination: `${URL_DEL_SITIO}/:path*`,
+            permanent: true,
+          }))
+        : []),
       // Rutas de mercado eliminadas → home (301 permanent)
       { source: "/mexico", destination: "/", permanent: true },
       { source: "/colombia", destination: "/", permanent: true },

@@ -18,6 +18,7 @@ import {
     Pildoras,
     useConfirmar,
 } from "../_ui";
+import { CORREO_DE_CAMPANA } from "@/app/lib/sitio";
 
 interface Lead {
     id: string;
@@ -264,7 +265,7 @@ export default function CorreosMasivos() {
                     <p>
                         Vas a enviar el correo <strong className="text-gray-700">“{subject.trim()}”</strong> a{" "}
                         <strong className="text-falu-red-700">{n}</strong> lead{n === 1 ? "" : "s"} desde{" "}
-                        <span className="font-medium">loren.lainez@lz-englishacademy.com</span>. Cada uno quedará marcado como contactado.
+                        <span className="font-medium">{CORREO_DE_CAMPANA}</span>. Cada uno quedará marcado como contactado.
                     </p>
                     <div className="max-h-32 overflow-y-auto rounded-lg bg-gray-50 border border-gray-100 p-3 mt-3 text-xs text-gray-500 space-y-0.5">
                         {selectedList.slice(0, 50).map((l) => (
@@ -292,7 +293,7 @@ export default function CorreosMasivos() {
                 descripcion={
                     <>
                         Envía un correo a varios leads a la vez. Se envía desde{" "}
-                        <span className="font-medium text-gray-600">loren.lainez@lz-englishacademy.com</span>.
+                        <span className="font-medium text-gray-600">{CORREO_DE_CAMPANA}</span>.
                         Cada lead enviado queda marcado como <span className="font-medium text-emerald-600">contactado</span>;
                         aparece como <span className="font-medium text-violet-600">convertido</span> solo si tiene un pago registrado.
                     </>

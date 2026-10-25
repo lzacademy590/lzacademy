@@ -3,18 +3,19 @@ import Link from "next/link";
 import { Container } from "../components/Container";
 import Card from "../components/Card";
 import Pill from "../components/Pill";
+import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
   title: "Método 590 | Aprende inglés en 90 días",
   description:
     "Descubre el Método 590: un sistema estructurado para aprender inglés en 90 días mediante 5 sesiones diarias que convierten el idioma en una rutina real y efectiva.",
-  alternates: { canonical: "https://lz-englishacademy.com/metodo" },
+  alternates: { canonical: `${URL_DEL_SITIO}/metodo` },
   openGraph: {
     title: "Método 590 | Aprende inglés en 90 días",
     description:
       "Descubre el Método 590: un sistema estructurado para aprender inglés en 90 días mediante 5 sesiones diarias que convierten el idioma en una rutina real y efectiva.",
-    url: "https://lz-englishacademy.com/metodo",
-    images: [{ url: "https://lz-englishacademy.com/og-image.png", width: 1200, height: 630 }],
+    url: `${URL_DEL_SITIO}/metodo`,
+    images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
   },
 };
 
