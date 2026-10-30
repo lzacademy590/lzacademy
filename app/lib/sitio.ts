@@ -12,7 +12,7 @@
 export const URL_DEL_SITIO = "https://lz-englishacademy.com";
 
 /** Buzón de dudas y soporte. */
-export const CORREO_DE_CONTACTO = "info@lz-englishacademy.com";
+export const CORREO_DE_CONTACTO = "soporte@lainz590.com";
 
 /** Remitente de la campaña a leads (lo envía el backend con este mismo valor). */
-export const CORREO_DE_CAMPANA = "loren.lainez@lz-englishacademy.com";
+export const CORREO_DE_CAMPANA = "loren@lainz590.com";
