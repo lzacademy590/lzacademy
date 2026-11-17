@@ -41,8 +41,14 @@ export default function ConfianzaDeCompra({
     if (!requiresCohort(clave)) {
       inicio = "Empiezas hoy mismo";
     } else if (!cargandoFechas) {
-      const proxima = dates.find((d) => !d.excludedPlans?.includes(clave));
-      if (proxima) inicio = `Próximo grupo: ${fechaLarga(proxima.value)}`;
+      // `dates` ya incluye las fechas en sus días de gracia (empezadas pero aún a
+      // la venta): esas no son el "próximo" grupo, así que gana una por empezar.
+      const hoy = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Los_Angeles" }).format(new Date());
+      const delPlan = dates.filter((d) => !d.excludedPlans?.includes(clave));
+      const proxima = delPlan.find((d) => d.value >= hoy);
+      const enCurso = delPlan.find((d) => d.value < hoy);
+      if (proxima) inicio = proxima.value === hoy ? "Tu grupo empieza hoy" : `Próximo grupo: ${fechaLarga(proxima.value)}`;
+      else if (enCurso) inicio = `Grupo del ${fechaLarga(enCurso.value)}: aún puedes unirte`;
     }
   }
 

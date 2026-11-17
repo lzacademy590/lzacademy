@@ -9,6 +9,7 @@ import { todayPT } from "../_utils/ptTime";
 import { fmtDia } from "../_utils/format";
 import { planesDeCheckout } from "@/app/lib/plans";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import { ultimoDiaDeCompra } from "@/app/hooks/useStartDates";
 import { usePlanesDelCatalogo } from "@/app/hooks/usePlanesDelCatalogo";
 import { Pagina, EncabezadoDePagina, Tarjeta, Cargando, Boton, Vacio, Chip, useToast, useConfirmar } from "../_ui";
 
@@ -19,6 +20,7 @@ interface StartDate {
     special?: boolean;
     excludedPlans?: string[];        // planes excluidos del formulario público normal
     excludedPlansSpecial?: string[]; // planes excluidos de /pago-estudiantes
+    diasDeGracia?: number;           // días que se sigue vendiendo después del inicio
 }
 
 // ⚠️ `label` se GUARDA en la base y lo leen el formulario público y la plataforma
@@ -312,7 +314,9 @@ export default function FechasPage() {
                     ) : (
                         <ul className="divide-y divide-gray-50">
                             {dates.map((date, i) => {
-                                const isPast = date.value < today;
+                                // Pasada = ya no se vende (su día de inicio + sus días de gracia quedó atrás).
+                                const isPast = ultimoDiaDeCompra(date) < today;
+                                const enGracia = !isPast && date.value < today;
                                 return (
                                     <li key={date.value} className={`px-4 sm:px-5 py-4 transition-colors hover:bg-gray-50/60 ${isPast ? "opacity-60" : ""}`}>
                                         {/* Cabecera: fecha + estados + eliminar */}
@@ -333,6 +337,7 @@ export default function FechasPage() {
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <p className="text-sm font-semibold text-gray-800">{date.label}</p>
                                                     {isPast && <Chip tono="gris">Pasada</Chip>}
+                                                    {enGracia && <Chip tono="ambar">En días de gracia</Chip>}
                                                 </div>
                                                 {/*
                                                   ⚠️ Iba en MM/DD/YYYY: el 4 de mayo se leía "05/04/2026", que
@@ -378,6 +383,47 @@ export default function FechasPage() {
                                                     Planes · Formulario público
                                                 </span>
                                                 {renderPlanExclusion(date, i, "excludedPlans", "red")}
+                                            </div>
+
+                                            {/*
+                                              Hasta cuándo se vende esta fecha (2026-11-16): el servidor la
+                                              acepta hasta su MISMO día de inicio (hora del Pacífico) más
+                                              estos días. Pasado eso deja de ofrecerse y de cobrarse.
+                                            */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 pt-2 border-t border-gray-100">
+                                                <label
+                                                    htmlFor={`gracia-${i}`}
+                                                    className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:w-44 sm:shrink-0"
+                                                >
+                                                    Días de gracia
+                                                </label>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <select
+                                                        id={`gracia-${i}`}
+                                                        value={date.diasDeGracia ?? 0}
+                                                        disabled={saving}
+                                                        onChange={(e) => {
+                                                            const n = Number(e.target.value);
+                                                            saveDates(dates.map((d, idx) => {
+                                                                if (idx !== i) return d;
+                                                                const { diasDeGracia: _quitar, ...resto } = d;
+                                                                void _quitar;
+                                                                return n > 0 ? { ...resto, diasDeGracia: n } : resto;
+                                                            }));
+                                                        }}
+                                                        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-800 disabled:opacity-50"
+                                                    >
+                                                        {Array.from(new Set([...Array.from({ length: 15 }, (_, n) => n), date.diasDeGracia ?? 0]))
+                                                            .sort((a, b) => a - b)
+                                                            .map((n) => (
+                                                                <option key={n} value={n}>{n === 0 ? "Ninguno" : `${n} ${n === 1 ? "día" : "días"}`}</option>
+                                                            ))}
+                                                    </select>
+                                                    <span className="text-[11px] text-gray-500">
+                                                        Se puede comprar hasta el {fmtDia(ultimoDiaDeCompra(date))}
+                                                        {(date.diasDeGracia ?? 0) > 0 ? "" : " (el mismo día de inicio)"}.
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             {date.special ? (

@@ -16,7 +16,8 @@ import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 /*
   Horario de GRUPO por cohorte y nivel (2026-10-16). El backend NO manda el total
   inscrito a propósito: "1 de 5" en un horario recién abierto desanima, así que
-  solo se dice cuántos faltan para abrirlo. Ver horarios.service.js.
+  solo se dice con cuántos alumnos se abre (desde el 2026-11-16, tampoco cuántos
+  faltan: restándolo del mínimo se sabe el total). Ver horarios.service.js.
 */
 interface HorarioDeClase {
     id: string;
@@ -237,7 +238,13 @@ const PaymentForm = ({
     }, [plan, needsCohorte]);
 
     const hayHorarios = horarios.length > 0;
-    const todosLlenos = hayHorarios && horarios.every(h => h.lleno || h.noAbrio || h.empezado);
+    /*
+      El día de inicio (o en sus días de gracia) puede no quedar ningún grupo por
+      empezar. Entonces se compra SIN horario y el equipo lo asigna después
+      (2026-11-16, decisión del negocio); el servidor tampoco lo exige.
+    */
+    const todosEmpezaron = hayHorarios && horarios.every(h => h.empezado);
+    const todosLlenos = hayHorarios && !todosEmpezaron && horarios.every(h => h.lleno || h.noAbrio || h.empezado);
     const zonaDelDispositivo = hayHorarios ? nombreDeLaZona() : "";
     /*
       Qué pasa si el horario no llega al mínimo, dicho con QUIÉN avisa, CUÁNDO y
@@ -342,7 +349,7 @@ const PaymentForm = ({
         if (needsCohorte && !formData.interestDate) {
             setError("Selecciona tu fecha de inicio."); return;
         }
-        if (hayHorarios && !formData.horarioId) {
+        if (hayHorarios && !todosEmpezaron && !formData.horarioId) {
             setError("");
             avisarHorario(todosLlenos
                 ? "No quedan lugares en este nivel para esta fecha. Elige otra fecha de inicio."
@@ -764,7 +771,13 @@ const PaymentForm = ({
                                 se publiquen, sin pagar de nuevo.
                             </div>
                         )}
-                        {hayHorarios && (
+                        {todosEmpezaron && (
+                            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                                Los grupos de esta fecha ya empezaron sus clases de hoy. Puedes inscribirte igual:
+                                el equipo te asigna tu horario y te lo enviamos por correo, sin pagar de nuevo.
+                            </div>
+                        )}
+                        {hayHorarios && !todosEmpezaron && (
                             <fieldset
                                 ref={selectorDeHorarioRef}
                                 className={`rounded-xl overflow-hidden border scroll-mt-24 ${horarioError ? "border-red-400 ring-2 ring-red-100" : "border-zinc-200"}`}
@@ -808,7 +821,9 @@ const PaymentForm = ({
                                                 ? h.restantes !== null
                                                     ? `Horario confirmado · quedan ${h.restantes} ${h.restantes === 1 ? "lugar" : "lugares"}`
                                                     : "Horario confirmado"
-                                                : `Necesita ${h.faltan} ${h.faltan === 1 ? "alumno" : "alumnos"} más para abrir`;
+                                                // Solo el mínimo, nunca cuántos faltan (2026-11-16): con eso
+                                                // se sabe cuántos hay inscritos.
+                                                : `El grupo se abre con ${h.minimo} ${h.minimo === 1 ? "alumno" : "alumnos"}`;
                                         return (
                                             <label
                                                 key={h.id}
