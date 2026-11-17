@@ -31,6 +31,9 @@ interface HorarioDeClase {
     // DESHABILITADO, no se esconde, para que el formulario no crea que ese nivel
     // no tiene horarios y venda sin pedir uno.
     noAbrio?: boolean;
+    // Falta 1 h o menos para su primera clase: el servidor ya no lo vende.
+    // Deshabilitado y no escondido, por lo mismo que noAbrio (2026-11-16).
+    empezado?: boolean;
     cierre?: string;
 }
 
@@ -208,7 +211,7 @@ const PaymentForm = ({
                 setHorarios(lista);
                 setHorariosEstado("listo");
                 // Un único horario con lugar se deja elegido: es el único posible.
-                const libres = lista.filter(h => !h.lleno && !h.noAbrio);
+                const libres = lista.filter(h => !h.lleno && !h.noAbrio && !h.empezado);
                 if (libres.length === 1) setFormData(prev => ({ ...prev, horarioId: libres[0].id }));
             })
             .catch(() => { if (vivo) { setHorarios([]); setHorariosEstado("fallo"); } });
@@ -234,7 +237,7 @@ const PaymentForm = ({
     }, [plan, needsCohorte]);
 
     const hayHorarios = horarios.length > 0;
-    const todosLlenos = hayHorarios && horarios.every(h => h.lleno || h.noAbrio);
+    const todosLlenos = hayHorarios && horarios.every(h => h.lleno || h.noAbrio || h.empezado);
     const zonaDelDispositivo = hayHorarios ? nombreDeLaZona() : "";
     /*
       Qué pasa si el horario no llega al mínimo, dicho con QUIÉN avisa, CUÁNDO y
@@ -250,7 +253,7 @@ const PaymentForm = ({
         const cuantos = n === null ? "el mínimo de alumnos" : `${n} ${n === 1 ? "alumno" : "alumnos"}`;
         // Si el admin decide que no abre, se le pasa al horario con lugar más
         // cercano y se le avisa; puede cambiarlo hasta 1 h antes de su clase.
-        const abiertos = horarios.filter(h => !h.noAbrio).length;
+        const abiertos = horarios.filter(h => !h.noAbrio && !h.empezado).length;
         return abiertos <= 1
             ? `Este horario se abre con ${cuantos}. Si no abre, te pasamos a un horario del siguiente inicio y te avisamos por correo, sin pagar de nuevo.`
             : `Cada horario se abre con ${cuantos}. Si el tuyo no abre, te pasamos al horario con lugar más cercano de tu nivel y te avisamos por correo. Puedes cambiarlo hasta 1 hora antes de tu primera clase, sin pagar de nuevo.`;
@@ -794,8 +797,10 @@ const PaymentForm = ({
                                     {horarios.map(h => {
                                         const info = infoDeLaHora(h.start_date, h.hora_pt);
                                         const elegido = formData.horarioId === h.id;
-                                        const cerrado = h.lleno || !!h.noAbrio;
-                                        const estado = h.noAbrio
+                                        const cerrado = h.lleno || !!h.noAbrio || !!h.empezado;
+                                        const estado = h.empezado
+                                            ? "Su primera clase ya empezó o empieza en menos de 1 hora. Elige otro horario"
+                                            : h.noAbrio
                                             ? "No reunió el mínimo de alumnos. Elige otro horario"
                                             : h.lleno
                                             ? "Sin lugares. Elige otro horario"
@@ -847,7 +852,7 @@ const PaymentForm = ({
                                                         ? "bg-zinc-200 text-zinc-600"
                                                         : h.confirmado ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
                                                 }`}>
-                                                    {h.noAbrio ? "Cerrado" : h.lleno ? "Lleno" : h.confirmado ? "Confirmado" : "Por confirmar"}
+                                                    {h.empezado ? "Ya empezó" : h.noAbrio ? "Cerrado" : h.lleno ? "Lleno" : h.confirmado ? "Confirmado" : "Por confirmar"}
                                                 </span>
                                             </label>
                                         );

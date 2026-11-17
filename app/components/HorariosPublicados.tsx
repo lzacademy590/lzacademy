@@ -41,6 +41,8 @@ interface Horario {
     confirmado: boolean;
     lleno: boolean;
     noAbrio?: boolean;
+    // Falta 1 h o menos para su primera clase: ya no se puede comprar.
+    empezado?: boolean;
     restantes: number | null;
 }
 
@@ -116,7 +118,7 @@ export default function HorariosPublicados({
                 const hoy = hoyLocal();
                 setZona(nombreDeLaZona());
                 setFallo(false);
-                setHorarios((Array.isArray(data) ? data : []).filter(h => h.start_date >= hoy && !h.noAbrio));
+                setHorarios((Array.isArray(data) ? data : []).filter(h => h.start_date >= hoy && !h.noAbrio && !h.empezado));
             })
             .catch(() => { setFallo(true); setHorarios([]); });
     }, [plan]);
