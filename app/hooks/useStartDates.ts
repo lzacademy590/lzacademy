@@ -8,6 +8,21 @@ export interface StartDate {
   enabled: boolean;
   special?: boolean;
   excludedPlans?: string[];
+  // Días que se sigue vendiendo DESPUÉS del inicio (Admin › Fechas). 0 o ausente:
+  // solo hasta el mismo día de inicio.
+  diasDeGracia?: number;
+}
+
+/*
+  Último día en que se puede COMPRAR esa fecha (2026-11-16): su día de inicio más
+  sus días de gracia. Misma regla que `ultimoDiaDeCompra` del backend, que es quien
+  decide; esta copia solo evita ofrecer una fecha que el servidor rechazaría.
+*/
+export function ultimoDiaDeCompra(d: StartDate): string {
+  const n = Number(d.diasDeGracia);
+  const gracia = Number.isInteger(n) && n > 0 ? Math.min(n, 60) : 0;
+  const [y, m, dia] = d.value.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, dia + gracia)).toISOString().slice(0, 10);
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
@@ -53,15 +68,14 @@ export function useStartDates() {
     return () => { vivo = false; };
   }, []);
 
-  // "Hoy" en la zona horaria local del usuario (YYYY-MM-DD). Usamos la zona del
-  // navegador (sin timeZone) para que cada fecha de inicio siga disponible todo su
-  // día local —hasta las 11:59pm del usuario— y desaparezca recién al pasar a la
-  // medianoche local. Antes se calculaba con toISOString() (UTC), lo que cortaba
-  // las fechas a destiempo según la zona horaria del usuario.
-  const todayLocal = new Intl.DateTimeFormat("sv-SE").format(new Date());
+  // "Hoy" en hora del PACÍFICO (2026-11-16), la misma con la que el servidor decide
+  // si una fecha aún se vende. Con la hora del navegador, en Honduras una fecha
+  // desaparecía a las 22:00 PT, y en Hawái se ofrecía una que el servidor ya
+  // rechazaba.
+  const todayLocal = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Los_Angeles" }).format(new Date());
   // Orden ascendente por fecha (YYYY-MM-DD) para que [0] sea siempre la más cercana.
   const availableDates = dates
-    .filter((d) => d.value >= todayLocal)
+    .filter((d) => ultimoDiaDeCompra(d) >= todayLocal)
     .sort((a, b) => a.value.localeCompare(b.value));
 
   // Current calendar month in PT — used by form date pickers
