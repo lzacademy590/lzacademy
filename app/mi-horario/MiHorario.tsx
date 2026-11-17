@@ -67,7 +67,8 @@ function detalle(h: Horario) {
             ? `Confirmado · quedan ${h.restantes} ${h.restantes === 1 ? "lugar" : "lugares"}`
             : "Grupo confirmado";
     }
-    return `Necesita ${h.faltan} ${h.faltan === 1 ? "alumno" : "alumnos"} más para abrir`;
+    // Solo el mínimo, nunca cuántos faltan (2026-11-16).
+    return `El grupo se abre con ${h.minimo} ${h.minimo === 1 ? "alumno" : "alumnos"}`;
 }
 
 export default function MiHorario() {
