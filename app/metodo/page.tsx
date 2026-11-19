@@ -1,259 +1,260 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Container } from "../components/Container";
-import Card from "../components/Card";
-import Pill from "../components/Pill";
 import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
+/*
+ * El Método 590 en UNA página. Une lo que antes vivía en cuatro:
+ * /metodo, /como-funciona (#semana), /sesiones (#sesiones) y /ciencia (#ciencia).
+ * Las URL viejas redirigen a estas anclas: no renombrar los `id`.
+ *
+ * ⚠️ No se pone una cifra de horas al día en ninguna parte (decisión del
+ * negocio): el tiempo lo decide el alumno. Y los días y la frecuencia de cada
+ * plan NO se escriben aquí: son dato del catálogo y ya los dicen las cards y
+ * las landings de cada plan.
+ */
+
+const DESCRIPCION =
+  "El Método 590: cinco sesiones diarias en el orden en que aprendiste tu primer idioma, práctica en vivo cada semana y a tu ritmo. Así funciona y por qué funciona.";
+
 export const metadata: Metadata = {
-  title: "Método 590 | Aprende inglés en 90 días",
-  description:
-    "Descubre el Método 590: un sistema estructurado para aprender inglés en 90 días mediante 5 sesiones diarias que convierten el idioma en una rutina real y efectiva.",
+  title: "El Método 590",
+  description: DESCRIPCION,
   alternates: { canonical: `${URL_DEL_SITIO}/metodo` },
   openGraph: {
-    title: "Método 590 | Aprende inglés en 90 días",
-    description:
-      "Descubre el Método 590: un sistema estructurado para aprender inglés en 90 días mediante 5 sesiones diarias que convierten el idioma en una rutina real y efectiva.",
+    title: "El Método 590 | LZ English Academy",
+    description: DESCRIPCION,
     url: `${URL_DEL_SITIO}/metodo`,
     images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
   },
 };
 
-function PrimaryButton({ children }: { children: React.ReactNode }) {
-  return (
-    <a
-      href='/paso-uno'
-      className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white bg-falu-red-700 hover:bg-falu-red-800 transition shadow-sm"
-    >
-      {children}
-    </a>
-  );
-}
+const SESIONES = [
+  {
+    titulo: "Teoría",
+    clave: "Estructura",
+    texto:
+      "Los patrones del día explicados con claridad. La teoría no es el destino: es el mapa para orientarte en el resto de las sesiones.",
+    plataforma: "el material de la sesión 1.",
+  },
+  {
+    titulo: "Escuchar",
+    clave: "Input",
+    texto:
+      "Una película o un podcast con subtítulos en inglés, para conectar el sonido con la forma escrita. No se trata de entenderlo todo, sino de entrenar el oído.",
+    plataforma: "la película o el podcast del día.",
+  },
+  {
+    titulo: "Vocabulario",
+    clave: "Repetición",
+    texto:
+      "Palabras nuevas en frases reales, repetidas con intención para que tu cerebro las recuerde con sentido.",
+    plataforma: "tu set de vocabulario.",
+  },
+  {
+    titulo: "Lectura",
+    clave: "Consolidación",
+    texto:
+      "Lees en voz alta y sin traducir. Así consolidas lo aprendido y la comprensión se vuelve automática.",
+    plataforma: "la lectura del día.",
+  },
+  {
+    titulo: "Práctica",
+    clave: "Producción",
+    texto:
+      "Escribes un diario corto en inglés (lo que llamamos journaling) y haces un reto de speaking. Aquí el idioma se vuelve tuyo.",
+    plataforma: "el tema del diario y el reto de speaking por WhatsApp.",
+  },
+];
 
-function SecondaryButton({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-falu-red-800 ring-1 ring-inset ring-falu-red-200 hover:bg-falu-red-50 transition"
-    >
-      {children}
-    </Link>
-  );
-}
+const SEMANA = [
+  {
+    cuando: "Lunes a jueves",
+    titulo: "Las 5 sesiones, a la hora que puedas",
+    texto:
+      "Haces el método en la plataforma según el día asignado. Te da el material de cada sesión, y el reto de speaking te llega por WhatsApp.",
+  },
+  {
+    cuando: "Viernes",
+    titulo: "Reunión de práctica en Zoom",
+    texto:
+      "Primero, 30 minutos de repaso para aclarar dudas. Después practicas en parejas con las estructuras y el vocabulario de la semana: de 3 a 5 minutos con cada compañero, hasta 5 rotaciones.",
+  },
+  {
+    cuando: "Según tu plan",
+    titulo: "Clases en vivo o sesiones 1 a 1",
+    texto:
+      "Según el plan que elijas, sumas clases en vivo en grupo o sesiones privadas 1 a 1 cada semana. Cada plan te dice sus días al elegirlo.",
+  },
+];
 
-const sesionesPreview = [
-  { n: "01", title: "Teoría y estructura", accent: "falu" as const },
-  { n: "02", title: "Listening (exposición real)", accent: "orange" as const },
-  { n: "03", title: "Vocabulario (base)", accent: "falu" as const },
-  { n: "04", title: "Lectura (estructura interna)", accent: "orange" as const },
-  { n: "05", title: "Producción (fluidez real)", accent: "falu" as const },
+const CIENCIA = [
+  {
+    titulo: "Ritmo, repetición y consistencia",
+    texto:
+      "El cerebro no aprende acumulando información sin orden. Cuando aprender se vuelve rutina, el idioma deja de ser esfuerzo y empieza a automatizarse.",
+  },
+  {
+    titulo: "Como tu primer idioma",
+    texto:
+      "Lo adquiriste escuchando, imitando y hablando, no memorizando reglas. El método sigue ese mismo orden: el idioma se vive antes de analizarse.",
+  },
+  {
+    titulo: "Un mapa para el cerebro adulto",
+    texto:
+      "Los adultos necesitamos estructura: patrones claros y una dirección. Por eso la teoría va primero y prepara el terreno para todo lo demás.",
+  },
+];
+
+const EN_ESTA_PAGINA = [
+  { href: "#sesiones", label: "Las 5 sesiones" },
+  { href: "#semana", label: "Tu semana" },
+  { href: "#tiempo", label: "Cuánto tiempo" },
+  { href: "#ciencia", label: "Por qué funciona" },
 ];
 
 export default function MetodoPage() {
   return (
-    <>
-      <main className="bg-white text-zinc-900">
-        {/* HERO */}
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-linear-to-b from-falu-red-50 via-white to-yellow-orange-50" />
-          <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-falu-red-300/25 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 right-10 h-72 w-72 rounded-full bg-yellow-orange-300/25 blur-3xl" />
-
-          <Container>
-            <div className="relative py-12 sm:py-16">
-              <Pill tone="falu">Método 590</Pill>
-              <h1 className="mt-4 text-4xl font-extrabold tracking-tight sm:text-6xl">
-                Aprende inglés en 90 días.{" "}
-                <span className="text-falu-red-800">Con método.</span>
-              </h1>
-              <p className="mt-5 max-w-3xl text-base text-zinc-600 sm:text-lg">
-                El Método 590 transforma el inglés en una experiencia diaria
-                estructurada, diseñada para activar el cerebro, construir fluidez
-                y convertir el idioma en una herramienta real de comunicación.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <PrimaryButton>Comienza tu proceso</PrimaryButton>
-                <SecondaryButton href="/sesiones">Ver las 5 sesiones</SecondaryButton>
-              </div>
-            </div>
-          </Container>
-        </section>
-
-        {/* ¿QUÉ ES EL MÉTODO 590? */}
-        <section className="py-12 sm:py-16">
-          <Container>
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
-              <div className="lg:col-span-7">
-                <Pill tone="neutral">¿Qué es el Método 590?</Pill>
-                <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                  Un sistema estructurado para convertir el inglés en rutina
-                </h2>
-
-                <div className="mt-6 space-y-4 text-zinc-600">
-                  <p className="text-base sm:text-lg">
-                    El Método 590 es un sistema de aprendizaje estructurado basado
-                    en cinco sesiones diarias durante noventa días, diseñado para
-                    convertir el inglés en una rutina viva, no en una materia.
-                  </p>
-                  <p className="text-base sm:text-lg">
-                    El cerebro humano aprende mejor cuando el aprendizaje ocurre de
-                    forma consistente. Cuando el idioma se integra a la rutina,
-                    deja de ser información y comienza a convertirse en experiencia.
-                  </p>
-                  <p className="text-base sm:text-lg">
-                    Por eso, el método no se enfoca en memorizar, sino en vivir el
-                    idioma: escuchar, comprender, producir, escribir y pensar en
-                    inglés todos los días.
-                  </p>
-                </div>
-              </div>
-
-              <div className="lg:col-span-5">
-                <Card className="relative overflow-hidden">
-                  <div className="absolute -left-16 -top-16 h-48 w-48 rounded-full bg-falu-red-300/15 blur-3xl" />
-                  <div className="absolute -right-16 -bottom-16 h-48 w-48 rounded-full bg-yellow-orange-300/15 blur-3xl" />
-                  <Pill tone="falu">Idea central</Pill>
-                  <p className="mt-4 text-xl font-extrabold text-falu-red-900">
-                    No se trata de estudiar inglés. Se trata de internalizarlo.
-                  </p>
-                  <p className="mt-3 text-sm text-zinc-600">
-                    El hábito construye fluidez: repetición diaria con intención y estructura.
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <Pill tone="neutral">Ritmo</Pill>
-                    <Pill tone="neutral">Consistencia</Pill>
-                    <Pill tone="neutral">Exposición</Pill>
-                    <Pill tone="neutral">Producción</Pill>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </Container>
-        </section>
-
-        {/* CIENCIA DETRÁS DEL MÉTODO */}
-        <section className="py-12 sm:py-16 bg-zinc-50">
-          <Container>
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-center">
-              <div className="lg:col-span-7">
-                <Pill tone="orange">Ciencia detrás del método</Pill>
-                <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                  Por qué funciona (en simple)
-                </h2>
-                <p className="mt-4 text-zinc-600">
-                  El cerebro aprende mejor con ritmo, repetición y consistencia.
-                  Cuando el aprendizaje se vuelve rutina, el idioma pasa de esfuerzo
-                  a automatización.
-                </p>
-
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  <SecondaryButton href="/ciencia">Ver ciencia completa</SecondaryButton>
-                </div>
-              </div>
-
-              <div className="lg:col-span-5">
-                <Card>
-                  <p className="text-sm font-semibold text-zinc-900">
-                    Resumen en 3 ideas
-                  </p>
-                  <div className="mt-4 space-y-3">
-                    {[
-                      "Ritmo + repetición + consistencia",
-                      "Exposición real antes de “analizar”",
-                      "Estructura para el cerebro adulto"
-                    ].map((t) => (
-                      <div
-                        key={t}
-                        className="flex items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-inset ring-zinc-200/70"
-                      >
-                        <span className="mt-1 h-2 w-2 rounded-full  bg-falu-red-700" />
-                        <p className="text-sm text-zinc-700">{t}</p>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </Container>
-        </section>
-
-        {/* 5 SESIONES */}
-        <section className="py-12 sm:py-16">
-          <Container>
-            <div className="mx-auto max-w-3xl text-center">
-              <Pill tone="neutral">Estructura diaria</Pill>
-              <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                Las 5 sesiones (preview)
-              </h2>
-              <p className="mt-4 text-zinc-600">
-                Cinco bloques diarios que activan escucha, lectura, escritura, habla y pensamiento.
-              </p>
-            </div>
-
-            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-              {sesionesPreview.map((s) => (
-                <Card key={s.n} className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <span
-                      className={[
-                        "inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-extrabold ring-1 ring-inset",
-                        s.accent === "orange" ? "bg-yellow-orange-100 text-yellow-orange-900 ring-yellow-orange-200" : "bg-falu-red-100 text-falu-red-900 ring-falu-red-200"
-                      ].join(" ")}
-                    >
-                      {s.n}
-                    </span>
-                    <Pill tone={s.accent === "orange" ? "orange" : "falu"}>Sesión</Pill>
-                  </div>
-                  <p className="mt-4 text-sm font-semibold text-zinc-900">{s.title}</p>
-                  <p className="mt-2 text-sm text-zinc-600">Ver detalle en la página de sesiones.</p>
-                </Card>
+    <main className="bg-white text-lz-ink">
+      {/* HERO */}
+      <section className="bg-linear-to-b from-white to-lz-lila py-12 sm:py-16">
+        <div className="lz-wrap">
+          <div className="mx-auto flex max-w-[900px] flex-col gap-5">
+            <p className="lz-eyebrow">El Método 590</p>
+            <h1 className="lz-display text-[38px] sm:text-[52px] lg:text-[60px]">
+              El inglés como una rutina diaria, durante 90 días
+            </h1>
+            <p className="lz-lead">
+              Cinco sesiones cortas cada día, en el orden en que aprendiste tu primer idioma:
+              entender, escuchar, repetir, leer y producir. La plataforma te guía en cada una.
+            </p>
+            <nav aria-label="En esta página" className="flex flex-wrap gap-2">
+              {EN_ESTA_PAGINA.map((a) => (
+                <a key={a.href} href={a.href} className="lz-pill lz-pill-lila no-underline hover:bg-lz-bd">
+                  {a.label}
+                </a>
               ))}
-            </div>
+            </nav>
+          </div>
+        </div>
+      </section>
 
-            <div className="mt-8 flex justify-center">
-              <SecondaryButton href="/sesiones">Ver sesiones completas →</SecondaryButton>
-            </div>
-          </Container>
-        </section>
-
-        {/* CTA FINAL */}
-        <section className="py-14 sm:py-18 bg-yellow-orange-50/35">
-          <Container>
-            <Card className="relative overflow-hidden">
-              <div className="absolute -left-20 -top-20 h-60 w-60 rounded-full bg-falu-red-300/12 blur-3xl" />
-              <div className="absolute -right-20 -bottom-20 h-60 w-60 rounded-full bg-yellow-orange-300/12 blur-3xl" />
-
-              <div className="relative grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-center">
-                <div className="lg:col-span-8">
-                  <h3 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    Comienza tu proceso con el Método 590
+      {/* LAS 5 SESIONES */}
+      <section id="sesiones" className="scroll-mt-24 py-16 sm:py-22">
+        <div className="lz-wrap flex flex-col gap-7">
+          <div className="flex flex-col gap-2.5">
+            <p className="lz-eyebrow">Las 5 sesiones</p>
+            <h2 className="lz-display text-[32px] sm:text-[44px]">Qué haces cada día</h2>
+          </div>
+          <ol className="m-0 flex list-none flex-col gap-3 p-0">
+            {SESIONES.map((s, i) => (
+              <li
+                key={s.titulo}
+                className="lz-card grid grid-cols-1 gap-3 px-5 py-5 sm:px-6 md:grid-cols-[64px_minmax(0,1fr)_260px] md:items-start md:gap-6"
+              >
+                <span className="font-display text-[36px] leading-none font-extrabold text-lz-grape sm:text-[40px]">
+                  0{i + 1}
+                </span>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <h3 className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                    <span className="text-[20px] font-bold text-lz-ink">{s.titulo}</span>
+                    <span className="text-[13px] font-bold tracking-[0.06em] text-lz-ink3 uppercase">
+                      {s.clave}
+                    </span>
                   </h3>
-                  <p className="mt-3 text-zinc-600">
-                    Llena el formulario y te orientamos para iniciar.
-                  </p>
+                  <p className="lz-p">{s.texto}</p>
                 </div>
+                <p className="text-[14px] leading-relaxed text-lz-ink2">
+                  <b className="text-lz-ink">En la plataforma:</b> {s.plataforma}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
 
-                <div className="lg:col-span-4 flex flex-col gap-3 sm:flex-row lg:justify-end">
-                  <PrimaryButton>Ir al formulario</PrimaryButton>
-                  <Link
-                    href="/historia"
-                    className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-falu-red-800 ring-1 ring-inset ring-falu-red-200 hover:bg-falu-red-50 transition"
-                  >
-                    Conocer la historia
-                  </Link>
-                </div>
-              </div>
-            </Card>
-          </Container>
-        </section>
-      </main>
-    </>
+      {/* TU SEMANA */}
+      <section id="semana" className="scroll-mt-24 bg-lz-lila py-16 sm:py-22">
+        <div className="lz-wrap flex flex-col gap-7">
+          <div className="flex flex-col gap-2.5">
+            <p className="lz-eyebrow">Tu semana</p>
+            <h2 className="lz-display text-[32px] sm:text-[44px]">
+              Cuatro días de rutina y uno de práctica en vivo
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {SEMANA.map((d) => (
+              <article key={d.cuando} className="lz-card flex flex-col gap-2.5 p-6">
+                <span className="lz-pill lz-pill-lila self-start">{d.cuando}</span>
+                <h3 className="text-[19px] font-bold text-lz-ink">{d.titulo}</h3>
+                <p className="lz-p text-[15px]">{d.texto}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CUÁNTO TIEMPO */}
+      <section id="tiempo" className="scroll-mt-24 py-16 sm:py-22">
+        <div className="lz-wrap">
+          <div className="lz-card flex flex-col gap-6 border-lz-lila2 p-6 sm:p-10 md:flex-row md:items-center md:gap-8">
+            <div className="flex flex-none flex-col gap-1">
+              <span className="font-display text-[44px] leading-none font-extrabold text-lz-grape sm:text-[60px]">
+                A tu ritmo
+              </span>
+              <span className="text-[15px] font-bold text-lz-ink2">
+                tú decides cuánto tiempo al día
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+              <h2 className="lz-display text-[28px] sm:text-[34px]">Cuánto tiempo necesitas</h2>
+              <p className="lz-p">
+                El que tengas. Las sesiones no tienen que ser seguidas: puedes hacer una en la
+                mañana, otra al almuerzo y las demás en la noche. Si un día no puedes, continúas al
+                siguiente sin perder el hilo.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* POR QUÉ FUNCIONA */}
+      <section id="ciencia" className="scroll-mt-24 bg-lz-violet py-16 text-white sm:py-22">
+        <div className="lz-wrap flex flex-col gap-7">
+          <div className="flex flex-col gap-2.5">
+            <p className="lz-eyebrow text-lz-fucsia-claro">Por qué funciona</p>
+            <h2 className="lz-display text-[32px] text-white sm:text-[44px]">
+              Tres ideas detrás del método
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {CIENCIA.map((c) => (
+              <article
+                key={c.titulo}
+                className="flex flex-col gap-2.5 rounded-[20px] border border-white/15 bg-white/[0.07] p-6"
+              >
+                <h3 className="text-[19px] font-bold text-white">{c.titulo}</h3>
+                <p className="lz-p text-[15px] text-lz-sobre-oscuro">{c.texto}</p>
+              </article>
+            ))}
+          </div>
+          <p className="lz-lead text-lz-sobre-oscuro">
+            El resultado no es solo aprendizaje: es la internalización del idioma.
+          </p>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 sm:py-18">
+        <div className="lz-wrap flex flex-col items-center gap-4 text-center">
+          <h2 className="lz-display max-w-[720px] text-[30px] sm:text-[42px]">
+            ¿Te imaginas tu día con el método?
+          </h2>
+          <p className="lz-lead">Responde 2 preguntas y te decimos qué plan te conviene.</p>
+          <Link href="/paso-uno" className="lz-btn lz-btn-1 lz-btn-lg">
+            Descubre tu plan en 1 minuto
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }

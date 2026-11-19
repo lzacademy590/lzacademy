@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const VALID_ROUTES = new Set([
   "/",
-  "/historia",
   "/interes",
   "/metodo",
-  "/ciencia",
-  "/como-funciona",
-  "/sesiones",
-  "/fundacion",
+  "/nosotros",
   "/success",
   "/pago-estudiantes",
   "/mi-horario",
@@ -20,6 +16,7 @@ const VALID_ROUTES = new Set([
   "/admin/horarios",
   "/admin/niveles",
   "/admin/contenido",
+  "/admin/marca",
   "/admin/login",
   "/admin/busqueda",
   "/admin/marketing",
@@ -30,13 +27,8 @@ const VALID_ROUTES = new Set([
   "/admin/no-renovados",
   "/admin/cupos",
   "/paso-uno",
-  "/paso-dos",
   "/paso-tres",
   "/paso-cuatro",
-  "/essential",
-  "/premium",
-  "/personalizado",
-  "/fluidez",
   "/terminos",
   "/reembolsos",
   "/privacidad",
@@ -61,23 +53,7 @@ export default function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  /*
-    La landing de un plan abierto en el admin (`/plan/<clave>`) es DINÁMICA, así
-    que no puede estar en `VALID_ROUTES`: su clave no se conoce al desplegar.
-
-    ⚠️⚠️ **Esta lista es una LISTA BLANCA, y por eso una ruta nueva muere en
-    silencio si nadie la añade**: no da 404 —que se vería— sino un 307 a la
-    portada, que parece que el enlace "no hace nada". Medido: la landing
-    respondía 307 y el navegador acababa en `/` sin ningún error.
-
-    Se comprueba la FORMA de la clave (un solo segmento, sin barras) y no que el
-    plan exista: de eso se encarga la página, que sabe distinguir "todavía no
-    cargó el catálogo" de "ese plan ya no está disponible". El middleware no
-    puede consultar el catálogo sin pagar una llamada en cada navegación.
-  */
-  if (/^\/plan\/[A-Za-z0-9_-]+$/.test(pathname)) {
-    return NextResponse.next();
-  }
+  // /plan/<clave> ya no es una página: redirige (308) al paso 2 desde next.config.ts.
 
   if (!VALID_ROUTES.has(pathname)) {
     return NextResponse.redirect(new URL("/", request.url), 307);

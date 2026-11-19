@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import LogoDeMarca from "../../components/LogoDeMarca";
 import { Boton } from "../_ui";
 
 export default function AdminLogin() {
@@ -51,15 +52,8 @@ export default function AdminLogin() {
 
                         {/* Brand */}
                         <div className="flex items-center gap-3 mb-8">
-                            <span className="relative w-12 h-12 rounded-full overflow-hidden ring-1 ring-black/5 shadow-md shadow-gray-300/40 flex-shrink-0">
-                                <img
-                                    src="/lzacademy_logo1.png"
-                                    alt="LZ English Academy"
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-                            </span>
+                            <LogoDeMarca className="h-11 max-w-[170px]" />
                             <div className="leading-none">
-                                <p className="text-base font-bold text-gray-900">LZ Academy</p>
                                 <p className="text-xs text-gray-400 mt-0.5">Panel de administración</p>
                             </div>
                         </div>
