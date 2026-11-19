@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import GoogleAnalytics from "./components/GoogleAnalytics";
 import { SiteWrapper } from "./components/SiteWrapper";
-import { Playfair_Display, Barlow_Condensed , Charmonman} from "next/font/google";
+import { Playfair_Display, Barlow_Condensed, Outfit, Hanken_Grotesk } from "next/font/google";
 import { URL_DEL_SITIO, CORREO_DE_CONTACTO } from "@/app/lib/sitio";
 
 const playfair = Playfair_Display({
@@ -20,6 +20,22 @@ const barlow = Barlow_Condensed({
   display: "swap",
 });
 
+// Marca 2026. Outfit (titulares) y Hanken Grotesk (texto) sustituyen a Broxa y
+// Neue Montreal, las del manual de marca, hasta tener sus archivos de fuente.
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-outfit",
+  display: "swap",
+});
+
+const hanken = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-hanken",
+  display: "swap",
+});
+
 const BASE_URL = URL_DEL_SITIO;
 
 // ─── Metadata base ────────────────────────────────────────────────────────────
@@ -30,7 +46,7 @@ export const metadata: Metadata = {
     template: "%s | LZ English Academy",
   },
   description:
-    "Aprende inglés en 90 días con el Método 590. Rutina de 5 sesiones diarias diseñada para construir fluidez real. Desde $10/mes.",
+    "Aprende inglés en 90 días con el Método 590. Rutina de 5 sesiones diarias diseñada para construir fluidez real.",
   icons: {
     icon: "/lzacademy_logo2.png",
     apple: "/lzacademy_logo2.png",
@@ -133,11 +149,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${playfair.variable} ${barlow.variable}`}>
+    <html lang="es" className={`${playfair.variable} ${barlow.variable} ${outfit.variable} ${hanken.variable}`}>
       <head>
         <OrganizationSchema />
       </head>
-      <body className="min-h-screen bg-white text-zinc-900 flex flex-col">
+      <body className="min-h-screen bg-white text-lz-ink font-sans flex flex-col">
         <SiteWrapper>{children}</SiteWrapper>
 
         <GoogleAnalytics />

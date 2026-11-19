@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import PaymentForm from "@/app/components/Form";
 import { useCatalogoDePlanes } from "@/app/hooks/usePlanesDelCatalogo";
 import { CHECKOUT_PLAN_KEYS, PLAN_MAP } from "@/app/lib/plans";
+import { medirPaso } from "@/app/lib/analitica";
 
 /*
   ⚠️ Era una unión de cuatro literales. Desde el 2026-09-06 el catálogo puede
@@ -132,6 +133,11 @@ function PasoCuatroContent() {
     setActivePlan(initialPlan);
   }, [initialPlan]);
 
+  // Paso 3 de 3 del embudo (HU-LZ-EMB, criterio 1). Una vez por visita.
+  useEffect(() => {
+    medirPaso("paso_tres_visto");
+  }, []);
+
   /*
     Mientras el catálogo viaja no se puede saber si la clave del enlace existe, y
     montar el formulario en ese hueco es justo lo que dejaba comprar Essential por
@@ -141,7 +147,7 @@ function PasoCuatroContent() {
     return (
       <main
         className="relative min-h-[calc(100dvh-68px)] flex items-center justify-center"
-        style={{ backgroundColor: "#fadadd" }}
+        style={{ backgroundColor: "#f7f0fb" }}
       >
         <p className="text-[15px] font-bold text-zinc-500">Cargando tu plan…</p>
       </main>
@@ -157,9 +163,9 @@ function PasoCuatroContent() {
     return (
       <main
         className="relative min-h-[calc(100dvh-68px)] flex flex-col items-center justify-center gap-5 px-6 text-center"
-        style={{ backgroundColor: "#fadadd" }}
+        style={{ backgroundColor: "#f7f0fb" }}
       >
-        <h1 className="text-2xl lg:text-3xl font-extrabold" style={{ color: "#C0353E" }}>
+        <h1 className="text-2xl lg:text-3xl font-extrabold" style={{ color: "#82159e" }}>
           {estadoDelCatalogo === 'fallo'
             ? "No pudimos cargar tu plan"
             : "Ese plan ya no está disponible"}
@@ -175,7 +181,7 @@ function PasoCuatroContent() {
               type="button"
               onClick={reintentarCatalogo}
               className="inline-flex items-center gap-3 rounded-2xl px-10 py-4 text-[15px] font-extrabold text-white shadow-lg transition hover:opacity-90 active:scale-95"
-              style={{ backgroundColor: "#bd181e" }}
+              style={{ backgroundColor: "#82159e" }}
             >
               Reintentar
             </button>
@@ -183,7 +189,7 @@ function PasoCuatroContent() {
           <Link
             href="/paso-tres"
             className="inline-flex items-center gap-3 rounded-2xl border-2 px-8 py-4 text-[15px] font-extrabold transition hover:opacity-90 active:scale-95"
-            style={{ borderColor: "#bd181e", color: "#bd181e" }}
+            style={{ borderColor: "#82159e", color: "#82159e" }}
           >
             Ver los planes
           </Link>
@@ -195,12 +201,12 @@ function PasoCuatroContent() {
   return (
     <main
       className="relative min-h-[calc(100dvh-68px)]"
-      style={{ backgroundColor: "#fadadd" }}
+      style={{ backgroundColor: "#f7f0fb" }}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: "radial-gradient(circle at 1px 1px, #9c181d 1px, transparent 0)",
+          backgroundImage: "radial-gradient(circle at 1px 1px, #82159e 1px, transparent 0)",
           backgroundSize: "18px 18px",
         }}
       />

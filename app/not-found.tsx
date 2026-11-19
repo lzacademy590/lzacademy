@@ -10,8 +10,8 @@ import { Container } from "@/app/components/Container";
 const suggestedLinks = [
     { href: "/", label: "Inicio", description: "Ver el Método 590" },
     { href: "/metodo", label: "El método", description: "Cómo funciona en 90 días" },
-    { href: "/historia", label: "La historia", description: "Por qué nació la academia" },
-    { href: "/paso-uno", label: "Planes y precios", description: "Essential $10 · Premium $50" },
+    { href: "/nosotros", label: "Nosotros", description: "Por qué nació la academia" },
+    { href: "/paso-tres", label: "Planes y precios", description: "Elige el que va contigo" },
 ];
 
 export default function NotFound() {

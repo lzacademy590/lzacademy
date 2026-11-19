@@ -239,7 +239,7 @@ export default function HorariosPublicados({
                         <div className="space-y-5">
                             {[...porInicio.entries()].map(([inicio, porNivel]) => (
                                 <div key={inicio}>
-                                    <p className="text-[12px] font-bold uppercase tracking-wide" style={{ color: "#C0353E" }}>
+                                    <p className="text-[12px] font-bold uppercase tracking-wide" style={{ color: "#82159e" }}>
                                         Inicio: {fechaLarga(inicio)}
                                     </p>
                                     <div className="mt-2 space-y-3">
@@ -273,7 +273,7 @@ export default function HorariosPublicados({
                             ))}
                         </div>
                         {!plan && (
-                            <Link href={irA(clavePlan)} className="mt-4 inline-block text-sm font-bold underline" style={{ color: "#C0353E" }}>
+                            <Link href={irA(clavePlan)} className="mt-4 inline-block text-sm font-bold underline" style={{ color: "#82159e" }}>
                                 Inscribirme en {nombrePlan(clavePlan)}
                             </Link>
                         )}

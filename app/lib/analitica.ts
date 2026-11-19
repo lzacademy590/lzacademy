@@ -67,6 +67,40 @@ function item(p: PlanMedido, posicion?: number) {
   };
 }
 
+/*
+  Eventos POR PASO del embudo (HU-LZ-EMB, criterio 1, 2026-11-18). Propios, no de
+  los recomendados de GA4: con ellos se ve en qué pantalla se cae la gente.
+
+  ⚠️ **Sin datos personales.** Viajan el nivel, las dificultades, la clave del
+  plan o dónde estaba el botón; nunca un nombre, un correo ni un teléfono.
+*/
+export type PasoDelEmbudo = "paso_uno_visto" | "paso_dos_visto" | "paso_tres_visto";
+
+/** Se vio un paso. Los nombres son los de la HU: `paso_dos` = /paso-tres (planes). */
+export function medirPaso(paso: PasoDelEmbudo) {
+  gtag("event", paso);
+}
+
+/** Paso 1: eligió nivel (`origen` dice si salió del test rápido). */
+export function medirNivelElegido(nivel: string, origen: "lista" | "test" | "por_defecto") {
+  gtag("event", "nivel_elegido", { nivel, origen });
+}
+
+/** Paso 1: dijo qué se le dificulta (claves de `NOMBRE_DE_DIFICULTAD`). */
+export function medirDificultades(claves: string[]) {
+  gtag("event", "dificultades_elegidas", { dificultades: claves.join(",") });
+}
+
+/** Un botón principal del inicio. `ubicacion`: "hero", "planes", "cierre"… */
+export function medirCtaInicio(ubicacion: string) {
+  gtag("event", "cta_home", { ubicacion });
+}
+
+/** El video de presentación del inicio. */
+export function medirVideoIntro(momento: "reproducido" | "completado") {
+  gtag("event", `video_intro_${momento}`);
+}
+
 /** /paso-tres enseñó sus cards. */
 export function medirListaDePlanes(planes: PlanMedido[]) {
   if (!planes.length) return;

@@ -262,7 +262,7 @@ const SuccessContent = () => {
                 /* Top accent bar */
                 .sc-bar {
                     height: 4px;
-                    background: linear-gradient(90deg, #9c181d 0%, #bd181e 40%, #fbb03b 100%);
+                    background: linear-gradient(90deg, #82159e 0%, #82159e 40%, #fbb03b 100%);
                 }
 
                 /* ── Hero ── */
@@ -292,7 +292,7 @@ const SuccessContent = () => {
                     display: inline-flex; align-items: center; gap: 6px;
                     background: rgba(156,24,29,0.06);
                     border: 1px solid rgba(156,24,29,0.15);
-                    color: #9c181d;
+                    color: #82159e;
                     padding: 5px 14px; border-radius: 100px;
                     font-size: 0.6875rem; font-weight: 700;
                     letter-spacing: 0.06em; text-transform: uppercase;
@@ -366,7 +366,7 @@ const SuccessContent = () => {
                 }
                 .sc-section-badge {
                     width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-                    background: linear-gradient(135deg, #9c181d, #bd181e);
+                    background: linear-gradient(135deg, #82159e, #82159e);
                     color: white; font-size: 0.6875rem; font-weight: 700;
                     display: flex; align-items: center; justify-content: center;
                 }
@@ -405,7 +405,7 @@ const SuccessContent = () => {
                     background: rgba(156,24,29,0.1);
                     display: flex; align-items: center; justify-content: center;
                 }
-                .sc-date-label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #9c181d; margin: 0 0 2px; }
+                .sc-date-label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #82159e; margin: 0 0 2px; }
                 .sc-date-value { font-size: 0.9375rem; font-weight: 700; color: #18181b; margin: 0; }
 
                 /* ── Steps / Timeline ── */
@@ -429,7 +429,7 @@ const SuccessContent = () => {
                 }
                 .sc-tl-dot {
                     width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
-                    background: linear-gradient(135deg, #9c181d, #bd181e);
+                    background: linear-gradient(135deg, #82159e, #82159e);
                     color: white; font-size: 0.625rem; font-weight: 700;
                     display: flex; align-items: center; justify-content: center;
                     position: relative; z-index: 1; margin-top: 1px;
@@ -462,7 +462,7 @@ const SuccessContent = () => {
                 }
                 .sc-btn-wa    { background: #25D366; color: white; box-shadow: 0 4px 14px rgba(37,211,102,0.26); }
                 .sc-btn-wa:hover { background: #20c05c; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,211,102,0.32); }
-                .sc-btn-primary { background: linear-gradient(135deg, #9c181d 0%, #bd181e 100%); color: white; box-shadow: 0 4px 14px rgba(156,24,29,0.24); }
+                .sc-btn-primary { background: linear-gradient(135deg, #82159e 0%, #82159e 100%); color: white; box-shadow: 0 4px 14px rgba(156,24,29,0.24); }
                 .sc-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(156,24,29,0.3); }
                 .sc-btn-ghost { background: transparent; color: #71717a; border: 1.5px solid #e4e4e7; }
                 .sc-btn-ghost:hover { background: #fafafa; color: #52525b; }
@@ -471,7 +471,7 @@ const SuccessContent = () => {
                     text-align: center; font-size: 0.75rem; color: #a1a1aa;
                     margin-top: 20px; line-height: 1.7;
                 }
-                .sc-footer a { color: #9c181d; font-weight: 600; text-decoration: none; }
+                .sc-footer a { color: #82159e; font-weight: 600; text-decoration: none; }
 
                 /* ── Error ── */
                 .sc-error-box {
@@ -493,7 +493,7 @@ const SuccessContent = () => {
                 .sc-shimmer::after {
                     content: ''; position: absolute; left: -40%; top: 0;
                     width: 40%; height: 100%;
-                    background: linear-gradient(90deg, transparent, #9c181d, transparent);
+                    background: linear-gradient(90deg, transparent, #82159e, transparent);
                     animation: shimmer 1.4s ease-in-out infinite;
                 }
                 @keyframes shimmer { to { left: 140%; } }
@@ -501,7 +501,7 @@ const SuccessContent = () => {
                 .sc-spinner {
                     width: 44px; height: 44px; border-radius: 50%;
                     border: 3px solid rgba(156,24,29,0.12);
-                    border-top-color: #9c181d;
+                    border-top-color: #82159e;
                     animation: spin 0.75s linear infinite;
                     margin: 0 auto 20px;
                 }
@@ -658,7 +658,7 @@ const SuccessContent = () => {
                                     {sinHorarioDeGrupo && (
                                         <div className="sc-date-row">
                                             <div className="sc-date-icon">
-                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
+                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#82159e" strokeWidth="1.5">
                                                     <circle cx="10" cy="10" r="8" />
                                                     <path d="M10 6v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
                                                 </svg>
@@ -682,7 +682,7 @@ const SuccessContent = () => {
                                     {formattedStartDate && (
                                         <div className="sc-date-row">
                                             <div className="sc-date-icon">
-                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
+                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#82159e" strokeWidth="1.5">
                                                     <rect x="2" y="4" width="16" height="14" rx="3" />
                                                     <path d="M6 2v3M14 2v3M2 9h16" strokeLinecap="round" />
                                                 </svg>
@@ -698,7 +698,7 @@ const SuccessContent = () => {
                                     {accessEndDate && (
                                         <div className="sc-date-row">
                                             <div className="sc-date-icon">
-                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
+                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#82159e" strokeWidth="1.5">
                                                     <rect x="2" y="5" width="16" height="11" rx="2.5" />
                                                     <path d="M2 9h16" strokeLinecap="round" />
                                                 </svg>
@@ -717,7 +717,7 @@ const SuccessContent = () => {
                                     {nextChargeDate && (
                                         <div className="sc-date-row">
                                             <div className="sc-date-icon">
-                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#9c181d" strokeWidth="1.5">
+                                                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="#82159e" strokeWidth="1.5">
                                                     <rect x="2" y="5" width="16" height="11" rx="2.5" />
                                                     <path d="M2 9h16" strokeLinecap="round" />
                                                 </svg>
