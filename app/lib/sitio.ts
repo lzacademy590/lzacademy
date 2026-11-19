@@ -14,5 +14,24 @@ export const URL_DEL_SITIO = "https://lz-englishacademy.com";
 /** Buzón de dudas y soporte. */
 export const CORREO_DE_CONTACTO = "soporte@lainz590.com";
 
+/**
+ * El video de presentación del inicio (rediseño «sitio simple», 2026-11-18).
+ *
+ * ⚠️ **Mientras `src` esté vacío el hero enseña la ilustración de siempre**, no
+ * un botón de reproducir que no lleva a nada. Para publicarlo basta con rellenar
+ * esto y desplegar:
+ *   - `src`: un .mp4 (se sirve con <video>) o un enlace de YouTube/Vimeo (se
+ *     incrusta). Solo se carga al pulsar Play, para no frenar la página en móvil.
+ *   - `duracion`: "2 min", tal cual se leerá bajo el título.
+ *   - `transcripcion`: el texto del video, para quien no puede oírlo. Opcional.
+ */
+export const VIDEO_INTRO = {
+  src: "",
+  poster: "/creadora.jpeg",
+  titulo: "Loren te explica el Método 590",
+  duracion: "",
+  transcripcion: "",
+};
+
 /** Remitente de la campaña a leads (lo envía el backend con este mismo valor). */
 export const CORREO_DE_CAMPANA = "loren@lainz590.com";

@@ -8,6 +8,7 @@ import { ProveedorDeToast } from "./_ui/toast";
 import { ProveedorDeConfirmacion } from "./_ui/confirmar";
 import { ProveedorDePendientes, usePendientes, contadoresDelMenu, totalDe } from "./_ui/pendientes";
 import { AdaptarTablas } from "./_ui/tablas";
+import LogoDeMarca from "../components/LogoDeMarca";
 import { useAlmacenLocal } from "./_ui";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode };
@@ -123,6 +124,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Configuración",
     items: [
+      { label: "Marca", href: "/admin/marca", icon: ICON.doc },
       { label: "Contenido", href: "/admin/contenido", icon: ICON.doc },
       { label: "Textos de los correos", href: "/admin/correo-interes", icon: ICON.mail },
       { label: "Fechas de inicio", href: "/admin/fechas", icon: ICON.calendar },
@@ -291,15 +293,8 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
         href="/admin/dashboard"
         className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 flex-shrink-0"
       >
-        <span className="relative w-9 h-9 rounded-full overflow-hidden ring-1 ring-black/5 shadow-sm flex-shrink-0">
-          <img
-            src="/lzacademy_logo1.png"
-            alt="LZ English Academy"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        </span>
+        <LogoDeMarca className="h-8 max-w-[120px]" />
         <div className="leading-none">
-          <p className="text-[13px] font-bold text-gray-900 leading-tight">LZ Academy</p>
           <p className="text-[10px] font-semibold text-gray-400 tracking-widest uppercase leading-tight mt-0.5">
             Admin
           </p>
@@ -341,15 +336,8 @@ function MarcoDelPanel({ children }: { children: React.ReactNode }) {
     <nav className="lg:hidden bg-white sticky top-0 z-20 shadow-[0_1px_0_0_#f3f4f6]">
       <div className="px-4 flex items-center justify-between h-16">
         <Link href="/admin/dashboard" className="flex items-center gap-2.5">
-          <span className="relative w-8 h-8 rounded-full overflow-hidden ring-1 ring-black/5 shadow-sm flex-shrink-0">
-            <img
-              src="/lzacademy_logo1.png"
-              alt="LZ English Academy"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          </span>
+          <LogoDeMarca className="h-8 max-w-[120px]" />
           <div className="leading-none">
-            <p className="text-[13px] font-bold text-gray-900 leading-tight">LZ Academy</p>
             <p className="text-[10px] font-semibold text-gray-400 tracking-widest uppercase leading-tight">
               Admin
             </p>

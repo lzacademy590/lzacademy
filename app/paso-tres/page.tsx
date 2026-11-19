@@ -3,18 +3,18 @@
 import Image from "next/image";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import PreguntasFrecuentes from "@/app/components/Questions";
-import { TestimonialsSection } from "@/app/components/Testimonials";
+import Link from "next/link";
 import { usePlanCupos } from "@/app/hooks/usePlanCupos";
 import { fraseDeClases } from "@/app/lib/dias-de-clase";
-import { medirListaDePlanes, medirPlanElegido, medirRecomendacion, type PlanMedido } from "@/app/lib/analitica";
+import { medirListaDePlanes, medirPaso, medirPlanElegido, medirRecomendacion, type PlanMedido } from "@/app/lib/analitica";
 import { recomendarPlan } from "@/app/lib/recomendacion";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
 import ConfianzaDeCompra from "@/app/components/ConfianzaDeCompra";
-import { unidadDePrecio } from "@/app/components/PrecioDelPlan";
+import { unidadDePrecio, notaDeCobro } from "@/app/components/PrecioDelPlan";
 import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
 import {
   usePlanesDelCatalogo,
+  useCatalogoDePlanes,
   precioEtiqueta,
 } from "@/app/hooks/usePlanesDelCatalogo";
 
@@ -154,7 +154,7 @@ const PRESENTACION: Record<string, Presentacion> = {
       "Comunidad en Whatsapp",
       "Diagnóstico de tus bloqueos al hablar",
       "Plan de acción escrito, semana a semana",
-      "Feedback y corrección mientras hablás",
+      "Feedback y corrección mientras hablas",
       "Reporte de tu progreso de fluidez",
       "Enfoque 100% en romper la barrera de hablar",
     ],
@@ -261,41 +261,6 @@ function rutaDelPlan(clave: string, soloEnPlataforma?: boolean): string {
  * Ese día la salida no es volver a las pastillas, es mover la elección al
  * checkout, que ya pregunta nivel y fecha.
  */
-/**
- * `inert` para la cara que NO se está viendo.
- *
- * ⚠️⚠️ **`backface-visibility: hidden` esconde, pero no saca del tabulador.**
- * Sin esto, un usuario de teclado recorría los controles de la cara oculta sin
- * verlos: medido, se llegaba a marcar la rama de $210 con la carta enseñando su
- * frente todo el rato y el precio por defecto en $120, y desde ahí al checkout.
- * Antes detrás de la carta había un botón; con la escalera hay CUATRO controles
- * de precio, así que el hueco pasó de molesto a cambiar lo que se compra.
- *
- * ⚠️⚠️ **Va como BOOLEANO, y averiguarlo costó una verificación entera mal
- * hecha.** El `package.json` de este proyecto declara React 18.2 y en
- * `node_modules/react` hay un 18.3.1 — pero el App Router de **Next 16 corre
- * la React que Next trae DENTRO, que es la 19**. Son dos Reacts distintas en
- * el mismo repositorio, y se comportan al revés la una de la otra:
- *
- * ```
- *              inert=""        inert={true}
- *   React 18   lo renderiza    lo DESCARTA (con aviso)
- *   React 19   lo DESCARTA     lo renderiza
- * ```
- *
- * La primera versión usó la cadena, comprobada contra el `react-dom/server`
- * del `node_modules` — o sea contra la React que esta página NO usa. Compilaba,
- * el test decía que sí, y en el navegador el atributo **no aparecía**: medido,
- * 0 de 4 reversos con `inert`. Con el booleano, 4 de 4.
- *
- * ⚠️ Si alguien alinea las versiones del `package.json` con la realidad, esto
- * NO cambia: lo que manda es la React de Next. Y si algún día se bajara de
- * Next 16, hay que volver a medirlo EN EL NAVEGADOR, no en un script de node.
- */
-function inertSiOculta(oculta: boolean) {
-  return { inert: oculta ? true : undefined };
-}
-
 function EscaleraDeRamas({
   ramas,
   elegidaKey,
@@ -400,27 +365,11 @@ function EscaleraDeRamas({
   );
 }
 
-/** Una fila de la tabla "Compara los planes". */
-function FilaComparar({ titulo, celdas }: { titulo: string; celdas: React.ReactNode[] }) {
-  return (
-    <tr className="border-b border-zinc-100 align-top">
-      <th scope="row" className="sticky left-0 z-10 bg-white px-4 py-3 text-[12px] font-bold text-zinc-500">
-        {titulo}
-      </th>
-      {celdas.map((c, i) => (
-        <td key={i} className="px-4 py-3">{c}</td>
-      ))}
-    </tr>
-  );
-}
-
 function PasosTresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nivel = searchParams.get("nivel") ?? "";
   const dificultades = searchParams.get("dificultades") ?? "";
-  const [flipped, setFlipped] = useState<Record<string, boolean>>({});
-  const [reducedMotion, setReducedMotion] = useState(false);
   const { isPlanAvailable, cuposLabel } = usePlanCupos();
   const { requiresCohort, loading: cargandoCohorte } = usePlanCohorte();
   /*
@@ -540,9 +489,8 @@ function PasosTresContent() {
             El copy local sigue mandando en lo que ES copy —viñetas, nombre, arte—;
             esto no lo era.
           */
-          billingNote: f.recurring
-            ? "Facturación automática cada 4 semanas"
-            : "Pago único · sin renovación automática",
+          // Un pago único dice que cubre 28 días: sin eso, «$200» no se compara con «$50 / 28 días».
+          billingNote: notaDeCobro(f.recurring === true),
           /*
             ⚠️⚠️ **Manda el CATÁLOGO; el copy local rellena al plan que no lo trae.**
             Estaba al revés, y era una decisión mía equivocada: la razoné como "no
@@ -613,7 +561,7 @@ function PasosTresContent() {
       un plan concreto.
     */
     .map((p) => {
-      const { ramas, elegida } = conLaRamaElegida(p);
+      const { elegida } = conLaRamaElegida(p);
       if (!elegida)
         return {
           ...p,
@@ -638,6 +586,12 @@ function PasosTresContent() {
           elegida as { sessionsPerWeek?: number | null }
         ).sessionsPerWeek,
         price: precioEtiqueta(elegida.priceCents),
+        /*
+          ⚠️ El COBRO de la rama, no el de su base: si una rama se renovara y su
+          base no (o al revés), la tarjeta y la barra contradirían al checkout.
+        */
+        priceUnit: unidadDePrecio((elegida as { recurring?: boolean }).recurring === true).trim(),
+        billingNote: notaDeCobro((elegida as { recurring?: boolean }).recurring === true),
         features: elegida.features.length ? elegida.features : p.features,
         /*
           ⚠️⚠️ **Y la RUTA también sale de la rama.** Sin esto la escalera cambiaba
@@ -695,18 +649,6 @@ function PasosTresContent() {
     const text = plan.id === "fluidez" ? cuposLabel("Fluidez") || plan.badge.text : plan.badge.text;
     return { ...plan.badge, text };
   }
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  function toggleFlip(id: string) {
-    setFlipped((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
-
   /*
     Qué plan mide la analítica para una carta: la RAMA elegida si es una
     familia (es lo que se compra), y si no, el plan de la carta.
@@ -734,492 +676,283 @@ function PasosTresContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogo]);
 
+  /*
+    El paso 2 del «sitio simple» (2026-11-18): elegir aquí ES elegir, sin pasar
+    por la landing del plan. La tarjeta elegida se marca, «Qué incluye» se
+    despliega dentro de la misma tarjeta, y la barra fija de abajo lleva a la
+    inscripción con ESE plan.
+
+    El plan preelegido: el de `?plan=` (lo mandan las tarjetas del inicio y las
+    landings viejas, que ahora redirigen aquí) o, sin él, el RECOMENDADO. Sin
+    ninguno de los dos no se preelige nada: quien entra por «Planes» elige él.
+
+    ⚠️⚠️ **Un `?plan=` que no se encuentra NUNCA cae a otro plan.** Caía a
+    `cartas[0]` y, con el catálogo lento o caído, `/plan/personalized_inmersion`
+    acababa en «Continuar con Plan Essential · $10» sin un solo aviso (medido por
+    QA y el comprador adversario, 2026-11-18). Es el bloqueante de dinero que
+    `/paso-cuatro` ya cerró el 2026-09-09, reaparecido un paso antes. Se
+    distinguen tres casos: el catálogo aún carga, falló, o ese plan no está
+    (retirado, agotado, inventado).
+  */
+  const { estado: estadoDelCatalogo, reintentar: reintentarCatalogo } = useCatalogoDePlanes();
+  const planDelEnlace = (searchParams.get("plan") ?? "").trim().toLowerCase();
+  const pidioPlan = planDelEnlace !== "";
+  const cartaDelEnlace = cartas.find(
+    (p) =>
+      String(p.claveDelPlan).toLowerCase() === planDelEnlace ||
+      p.ramas.some((r) => r.key.toLowerCase() === planDelEnlace),
+  );
+  const planDelEnlacePendiente = pidioPlan && !cartaDelEnlace;
+  const fluidezAgotado = planDelEnlace === "fluidez" && !isPlanAvailable("Fluidez");
+  const avisoDelEnlace: "cargando" | "fallo" | "agotado" | "no-esta" | null = !planDelEnlacePendiente
+    ? null
+    : fluidezAgotado
+      ? "agotado"
+      : estadoDelCatalogo === "cargando"
+        ? "cargando"
+        : estadoDelCatalogo === "fallo"
+          ? "fallo"
+          : "no-esta";
+  const [elegida, setElegida] = useState<string | null>(null);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const porDefecto = pidioPlan ? cartaDelEnlace : cartas.find((p) => esRecomendado(p));
+  const claveElegida = elegida ?? (porDefecto ? String(porDefecto.claveDelPlan) : null);
+  const claveAbierta = abierta === null ? claveElegida : abierta;
+  const cartaElegida = claveElegida ? cartas.find((p) => String(p.claveDelPlan) === claveElegida) : undefined;
+  // La clave que se COBRA: la rama elegida si es una familia. Su cohorte manda en la barra.
+  const claveCobrada = cartaElegida ? (cartaElegida.elegida?.key ?? String(cartaElegida.claveDelPlan)) : null;
+
+  // Si el enlace nombraba una RAMA, se deja elegida dentro de su familia.
+  useEffect(() => {
+    if (!cartaDelEnlace) return;
+    const rama = cartaDelEnlace.ramas.find((r) => r.key.toLowerCase() === planDelEnlace);
+    if (rama) setRamaPorFamilia((prev) => ({ ...prev, [String(cartaDelEnlace.claveDelPlan)]: rama.key }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartaDelEnlace?.claveDelPlan, planDelEnlace]);
+
+  const pasoMedido = useRef(false);
+  useEffect(() => {
+    if (pasoMedido.current) return;
+    pasoMedido.current = true;
+    medirPaso("paso_dos_visto");
+  }, []);
+
   function handleSeleccionar(plan: (typeof visiblePlans)[number]) {
     medirPlanElegido(planMedido(plan));
-    const route = plan.route;
+    /*
+      ⚠️ Un plan que este sitio no sabe cobrar sigue yendo a la plataforma
+      (`rutaDelPlan` con `soloEnPlataforma`). Todo lo demás va directo a la
+      inscripción con la clave que se COBRA: la rama elegida si es una familia.
+    */
+    if (plan.route.startsWith("http")) {
+      window.location.href = plan.route;
+      return;
+    }
+    const clave = plan.elegida?.key ?? String(plan.claveDelPlan);
     router.push(
-      `${route}?nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(dificultades)}`
+      `/paso-cuatro?plan=${encodeURIComponent(clave)}&nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(dificultades)}`,
     );
   }
 
-  function handleVolver() {
-    router.back();
-  }
+  const nombreDe = (plan: (typeof visiblePlans)[number]) => plan.name.replace(/\s+/g, " ");
+  const volverAlPaso1 = `/paso-uno?nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(dificultades)}`;
 
   return (
-    <main
-      className="relative min-h-[calc(100dvh-68px)] overflow-hidden flex flex-col"
-      style={{ backgroundColor: "#9c1a38" }}
-    >
-      {/* Textura de puntos */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)",
-          backgroundSize: "18px 18px",
-        }}
-      />
-
-      {/* Título */}
-      <div className="relative z-10 w-full flex flex-col items-center pt-8 pb-6 px-4">
-
-        <div className="w-full flex justify-end mb-2">
-          <button
-            type="button"
-            onClick={handleVolver}
-            className="inline-flex items-center rounded-2xl px-6 py-2.5 text-[14px] font-bold text-zinc-700 bg-white shadow-sm transition hover:shadow-md active:scale-95"
-            style={{ border: "1.5px solid #d4d4d4" }}
-          >
-            Volver
-          </button>
+    <main className="min-h-[calc(100dvh-72px)] bg-lz-lila pb-44">
+      <div className="lz-wrap flex max-w-[960px] flex-col gap-6 pt-10">
+        <ProgresoDelEmbudo paso={2} />
+        <div className="flex flex-col gap-2.5">
+          <h1 className="lz-display text-[34px] sm:text-[44px]">
+            {recomendacion ? "Tu plan recomendado" : "Elige tu plan"}
+          </h1>
+          <p className="lz-lead">
+            {recomendacion
+              ? recomendacion.motivo
+              : "Todos los planes incluyen el Método 590 completo; cambia cuánto acompañamiento tienes en vivo."}
+          </p>
+          {(nivel || dificultades) && (
+            <Link href={volverAlPaso1} className="self-start text-[14px] text-lz-ink2 underline underline-offset-2">
+              Cambiar mis respuestas
+            </Link>
+          )}
         </div>
-        <ProgresoDelEmbudo paso={3} tono="oscuro" />
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight text-center">
-          Elige tu experiencia
-        </h1>
-        <p className="mt-3 text-[15px] text-white/75 font-medium max-w-2xl text-center">
-          Cada plan incluye el Método 590. Elige la intensidad de acompañamiento que necesitas.
-        </p>
-        {recomendacion && (
+
+        {avisoDelEnlace && (
           <div
-            className="mt-5 w-full max-w-2xl rounded-2xl px-5 py-4 text-left"
-            style={{ backgroundColor: "rgba(253,230,138,0.14)", border: "1.5px solid rgba(253,230,138,0.55)" }}
+            role={avisoDelEnlace === "fallo" ? "alert" : "status"}
+            className={`lz-card flex flex-wrap items-center gap-3 p-4 ${avisoDelEnlace === "cargando" ? "" : "border-[#e0b860] bg-[#fff8e8]"}`}
           >
-            <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: "#fde68a" }}>
-              Según lo que nos contaste
+            <p className="min-w-0 flex-1 basis-[260px] text-[15px] text-lz-ink">
+              {avisoDelEnlace === "cargando" && "Cargando el plan que elegiste…"}
+              {avisoDelEnlace === "fallo" &&
+                "No pudimos cargar el plan que elegiste. Es un problema nuestro, no de tu enlace."}
+              {avisoDelEnlace === "agotado" && "Fluidez está agotado por ahora. Puedes elegir otro plan de la lista."}
+              {avisoDelEnlace === "no-esta" &&
+                "El plan de tu enlace ya no está disponible. Estos son los planes que puedes contratar ahora."}
             </p>
-            <p className="mt-1 text-[15px] font-semibold leading-snug text-white">
-              Te recomendamos{" "}
-              <strong>
-                {(cartas[0]?.name ?? recomendacion.clave).replace(/\s+/g, " ")}
-              </strong>
-              . {recomendacion.motivo}
-            </p>
+            {avisoDelEnlace === "fallo" && (
+              <button type="button" onClick={reintentarCatalogo} className="lz-btn lz-btn-2 lz-btn-sm">
+                Reintentar
+              </button>
+            )}
           </div>
         )}
-        <a
-          href="#comparar"
-          className="mt-4 text-[13px] font-bold text-white/80 underline decoration-dotted underline-offset-4 hover:text-white"
-        >
-          Comparar los planes lado a lado ↓
-        </a>
-      </div>
 
-      {/* Cards + Muñecas */}
-      <div className="relative z-10 flex-1 flex flex-col">
-
-        {/* ── Cards mobile (sin 3D) ── */}
-        <div className="sm:hidden w-full max-w-6xl mx-auto px-4 flex flex-col gap-6">
+        <div role="radiogroup" aria-label="Planes" className="flex flex-col gap-3">
           {cartas.map((plan) => {
+            const clave = String(plan.claveDelPlan);
+            const on = clave === claveElegida;
+            const abiertaEsta = clave === claveAbierta;
             const badge = badgeDe(plan);
+            const rec = esRecomendado(plan);
             return (
-            <div key={plan.id} className="relative">
-              {badge && (
-                <span
-                  className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
-                  style={{ backgroundColor: badge.bg, color: badge.color }}
-                >
-                  {badge.text}
-                </span>
-              )}
-              <div
-                className={`rounded-3xl px-5 py-5 shadow-lg overflow-hidden ${esRecomendado(plan) ? "ring-4 ring-[#fde68a]" : ""}`}
-                style={{ backgroundColor: plan.cardBg }}
+              <article
+                key={plan.id}
+                className={`lz-card overflow-hidden ${on ? "border-lz-grape shadow-[0_0_0_3px_var(--color-lz-lila2)]" : ""}`}
               >
-                {/* Nombre + precio en la misma fila */}
-                <div className="flex items-start justify-between mb-3">
-                  <p className="text-xl font-extrabold whitespace-pre-line" style={{ color: plan.nameColor }}>
-                    {plan.name}
-                  </p>
-                  <div className="text-right shrink-0 ml-4">
-                    {/*
-                      ⚠️ **En una FAMILIA no hay un precio grande: hay una escalera.**
-                      El precio de cada rama va en su fila, unas líneas más abajo.
-                      Repetirlo aquí sería el mismo dato en dos sitios de la misma
-                      carta, que es como acaban discrepando.
-                    */}
-                    {!plan.esFamilia && (
-                      <>
-                        <p className="text-3xl font-extrabold leading-none" style={{ color: plan.nameColor }}>
-                          {plan.price}
-                        </p>
-                        <p className="text-[11px] font-bold opacity-70 mt-0.5" style={{ color: plan.nameColor }}>
-                          {plan.priceUnit}
-                        </p>
-                      </>
-                    )}
-                    {plan.billingNote && (
-                      <p className="text-[10px] font-medium opacity-55 mt-0.5 max-w-[120px] ml-auto leading-tight" style={{ color: plan.nameColor }}>
-                        {plan.billingNote}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* La escalera va ANCHA y bajo el nombre: en la columna derecha,
-                    junto al precio, las cuatro filas quedaban en 120 px. */}
-                {plan.esFamilia && "ramas" in plan && (
-                  <div className="mb-3">
-                    <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60" style={{ color: plan.nameColor }}>
-                      Elige cuántas clases por semana
-                    </p>
-                    <EscaleraDeRamas
-                      ramas={plan.ramas}
-                      elegidaKey={plan.elegida?.key}
-                      onElegir={(key) =>
-                        setRamaPorFamilia((prev) => ({
-                          ...prev,
-                          [String(plan.claveDelPlan ?? "")]: key,
-                        }))
-                      }
-                      colorTexto={plan.nameColor}
-                      colorBorde={plan.checkColor}
-                      /*
-                        ⚠️ La fila marcada INVIERTE los colores de la carta, no se
-                        rellena de blanco: en Premium y Personalizado el texto de la
-                        carta YA es blanco (`nameColor: "#fff"`), así que un
-                        `textoActivo="#fff"` dejaba la opción elegida en blanco sobre
-                        blanco — invisible, y justo la que el comprador acaba de
-                        tocar. Invertir contrasta siempre, porque `nameColor` se
-                        elige legible sobre `cardBg`.
-                      */
-                      fondoActivo={plan.nameColor}
-                      textoActivo={plan.cardBg}
-                    />
-                  </div>
+                {rec && (
+                  <p className="bg-lz-grape px-5 py-2 text-[13px] font-bold text-white">Recomendado para ti</p>
                 )}
-
-                {plan.subtitle && (
-                  <p className="text-[11px] font-semibold mb-2 opacity-70" style={{ color: plan.nameColor }}>
-                    {plan.subtitle}
-                  </p>
-                )}
-                {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
-                  <p className="text-[11px] font-bold mb-2" style={{ color: plan.nameColor }}>
-                    {plan.clasesLinea}
-                  </p>
-                )}
-
-                <ul className="flex flex-col gap-2 mb-4">
-                  {plan.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2">
-                      <span
-                        className="shrink-0 mt-0.5 flex items-center justify-center w-4 h-4 rounded-full"
-                        style={{ border: `2px solid ${plan.checkColor}` }}
-                      >
-                        <svg className="w-2 h-2" viewBox="0 0 10 10" fill="none">
-                          <polyline points="1.5,5 4,7.5 8.5,2" stroke={plan.checkColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                      <span className="text-[13px] font-semibold leading-snug" style={{ color: plan.nameColor }}>
-                        {feat}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  type="button"
-                  onClick={() => handleSeleccionar(plan)}
-                  className="w-full rounded-full py-3 text-[14px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
-                  style={{ color: plan.btnColor }}
-                >
-                  Seleccionar
-                </button>
-                <ConfianzaDeCompra
-                  clave={String(plan.claveDelPlan)}
-                  tono={plan.nameColor === "#fff" ? "oscuro" : "claro"}
-                  className="mt-3"
-                />
-                <div className="relative h-[180px] mt-3 -mx-5 -mb-5">
+                <div className="flex flex-wrap items-center gap-4 p-5">
                   <Image
                     src={plan.muñeca}
-                    alt=""
-                    fill
-                    className="object-contain object-bottom [filter:drop-shadow(-20px_15px_25px_rgba(0,0,0,0.35))]"
-                    sizes="90vw"
-                    priority
+                    alt={`Ilustración del plan ${nombreDe(plan)}`}
+                    width={168}
+                    height={168}
+                    className="h-[84px] w-[84px] object-contain"
+                    sizes="84px"
                   />
-                </div>
-              </div>
-            </div>
-            );
-          })}
-        </div>
-
-        {/* ── Cards desktop (con flip 3D) ── */}
-        <div className="hidden sm:grid w-full max-w-4xl mx-auto px-4 grid-cols-1 sm:grid-cols-2 gap-3">
-          {cartas.map((plan) => {
-            const badge = badgeDe(plan);
-            return (
-            <div key={plan.id} className="flex flex-col items-center">
-              <div
-                className={`w-full relative rounded-3xl ${esRecomendado(plan) ? "ring-4 ring-[#fde68a]" : ""}`}
-                /*
-                  470 y no 440: con la línea de garantía/fecha, el reverso de una
-                  FAMILIA (cuatro filas de escalera) se salía 13 px por arriba y
-                  el título quedaba bajo el badge. Medido, no estimado.
-                */
-                style={{ perspective: "1000px", WebkitPerspective: "1000px", height: "470px" }}
-              >
-                {badge && (
-                  <span
-                    className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-widest px-5 py-1.5 rounded-full"
-                    style={{ backgroundColor: badge.bg, color: badge.color }}
-                  >
-                    {badge.text}
-                  </span>
-                )}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Ver precio del ${plan.name.replace("\n", " ")}`}
-                  onClick={() => toggleFlip(plan.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleFlip(plan.id); }}
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    height: "100%",
-                    transformStyle: "preserve-3d",
-                    WebkitTransformStyle: "preserve-3d",
-                    transition: reducedMotion ? "none" : "transform 0.4s cubic-bezier(.4,0,.2,1)",
-                    transform: flipped[plan.id] ? "rotateY(180deg)" : "rotateY(0deg)",
-                    cursor: "pointer",
-                    willChange: "transform",
-                  }}
-                >
-                  {/* FRENTE */}
-                  <div
-                    {...inertSiOculta(!!flipped[plan.id])}
-                    className="rounded-3xl px-6 py-5 flex flex-col shadow-lg"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      backgroundColor: plan.cardBg,
-                      backfaceVisibility: "hidden",
-                      WebkitBackfaceVisibility: "hidden",
-                      transform: "translateZ(1px)",
-                    }}
-                  >
-                    <p className="text-2xl font-extrabold whitespace-pre-line mb-1" style={{ color: plan.nameColor }}>
-                      {plan.name}
-                    </p>
-                    {plan.subtitle && (
-                      <p className="text-[12px] font-semibold mb-2 opacity-70" style={{ color: plan.nameColor }}>
-                        {plan.subtitle}
-                      </p>
-                    )}
-                    {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
-                      <p className="text-[12px] font-bold mb-2" style={{ color: plan.nameColor }}>
-                        {plan.clasesLinea}
-                      </p>
-                    )}
-                    <ul className="flex flex-col gap-2 flex-1">
-                      {plan.features.map((feat) => (
-                        <li key={feat} className="flex items-start gap-2">
-                          <span
-                            className="shrink-0 mt-0.5 flex items-center justify-center w-4 h-4 rounded-full"
-                            style={{ border: `2px solid ${plan.checkColor}` }}
-                          >
-                            <svg className="w-2 h-2" viewBox="0 0 10 10" fill="none">
-                              <polyline points="1.5,5 4,7.5 8.5,2" stroke={plan.checkColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                          <span className="text-[13px] font-semibold leading-snug" style={{ color: plan.nameColor }}>
-                            {feat}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {/* El precio ya se lee en el FRENTE: esconderlo detrás de un
-                        giro obligaba a voltear cada carta para comparar. El
-                        reverso sigue con el botón y, en una familia, la escalera. */}
-                    <p className="text-[20px] font-extrabold text-center mt-2 pr-24" style={{ color: plan.nameColor }}>
-                      {plan.esFamilia && plan.ramas.length
-                        ? `Desde ${precioEtiqueta(plan.ramas[0].priceCents)}`
-                        : plan.price}{" "}
-                      <span className="text-[11px] font-bold opacity-70">{plan.priceUnit}</span>
-                    </p>
-                    <p className="text-[12px] font-bold text-center mt-0.5 opacity-60 pr-24" style={{ color: plan.nameColor }}>
-                      Clic para elegir →
-                    </p>
-                    {/* Muñeca chica de acento en la esquina — no estorba el texto */}
-                    <div className="pointer-events-none select-none absolute bottom-2 right-2 h-[150px] w-[115px]">
-                      <Image
-                        src={plan.muñeca}
-                        alt=""
-                        fill
-                        className="object-contain object-bottom [filter:drop-shadow(-10px_8px_14px_rgba(0,0,0,0.28))]"
-                        sizes="130px"
-                      />
+                  <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h2 className="lz-display text-[26px]">{nombreDe(plan)}</h2>
+                      {badge && !rec && <span className="lz-pill lz-pill-ambar">{badge.text}</span>}
                     </div>
+                    {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
+                      <p className="text-[14px] font-semibold text-lz-ink2">{plan.clasesLinea}</p>
+                    )}
+                    <ConfianzaDeCompra clave={clave} className="!justify-start" />
                   </div>
-
-                  {/* REVERSO */}
-                  <div
-                    {...inertSiOculta(!flipped[plan.id])}
-                    className="rounded-3xl px-6 py-5 flex flex-col items-center justify-center shadow-lg"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      backgroundColor: plan.backBg,
-                      backfaceVisibility: "hidden",
-                      WebkitBackfaceVisibility: "hidden",
-                      transform: "rotateY(180deg) translateZ(1px)",
+                  <div className="flex min-w-[140px] flex-col items-end">
+                    <p>
+                      <span className="lz-display text-[34px] tabular-nums text-lz-grape">{plan.price}</span>
+                      <span className="text-[13px] text-lz-ink3"> {plan.priceUnit}</span>
+                    </p>
+                    <p className="text-[12px] font-semibold text-lz-ink2">{plan.billingNote}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => {
+                      setElegida(clave);
+                      setAbierta(clave);
                     }}
+                    className={`lz-btn lz-btn-sm min-w-[120px] ${on ? "lz-btn-1" : "lz-btn-2"}`}
                   >
-                    <p className="text-[12px] font-extrabold uppercase tracking-widest mb-2 opacity-70" style={{ color: "#fff" }}>
-                      {plan.name.replace("\n", " ")}
-                    </p>
-                    {/*
-                      ⚠️ En una FAMILIA, la escalera SUSTITUYE al precio de 76 px:
-                      cada fila lleva el suyo. Ver `EscaleraDeRamas`.
-
-                      Los colores se invierten respecto a la carta de móvil porque
-                      aquí el fondo es oscuro: la fila marcada va en blanco con el
-                      color del plan, igual que el botón "Seleccionar" de abajo.
-                    */}
-                    {plan.esFamilia && "ramas" in plan ? (
-                      <div className="w-full max-w-[280px]">
-                        <EscaleraDeRamas
-                          ramas={plan.ramas}
-                          elegidaKey={plan.elegida?.key}
-                          onElegir={(key) =>
-                            setRamaPorFamilia((prev) => ({
-                              ...prev,
-                              [String(plan.claveDelPlan ?? "")]: key,
-                            }))
-                          }
-                          colorTexto="#fff"
-                          colorBorde="rgba(255,255,255,0.45)"
-                          fondoActivo="#fff"
-                          textoActivo={plan.btnColor}
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <p className="font-extrabold leading-none" style={{ color: "#fff", fontSize: "76px" }}>
-                          {plan.price}
-                        </p>
-                        <p className="text-[13px] font-bold mt-1 opacity-80" style={{ color: "#fff" }}>
-                          {plan.priceUnit}
-                        </p>
-                      </>
-                    )}
-                    {plan.billingNote && (
-                      <p className="text-[11px] font-medium mt-1.5 opacity-60 text-center max-w-[180px]" style={{ color: "#fff" }}>
-                        {plan.billingNote}
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleSeleccionar(plan); }}
-                      className="mt-4 inline-flex items-center rounded-full px-7 py-2.5 text-[13px] font-extrabold bg-white transition hover:opacity-90 active:scale-95"
-                      style={{ color: plan.btnColor }}
-                    >
-                      Seleccionar
-                    </button>
-                    <ConfianzaDeCompra
-                      clave={String(plan.claveDelPlan)}
-                      tono="oscuro"
-                      className="mt-4 max-w-[300px]"
-                    />
-                    <p className="text-[12px] font-bold mt-3 opacity-50 cursor-pointer" style={{ color: "#fff" }}>
-                      ← Ver detalles
-                    </p>
-                  </div>
+                    {on ? "Elegido" : "Elegir"}
+                  </button>
                 </div>
-              </div>
-            </div>
+
+                <div className="border-t border-lz-bd">
+                  <button
+                    type="button"
+                    onClick={() => setAbierta(abiertaEsta ? "" : clave)}
+                    aria-expanded={abiertaEsta}
+                    className="flex min-h-12 w-full items-center justify-between px-5 text-[14px] font-bold text-lz-grape"
+                  >
+                    Qué incluye {nombreDe(plan)}
+                    <span aria-hidden="true">{abiertaEsta ? "−" : "+"}</span>
+                  </button>
+                  {abiertaEsta && (
+                    <div className="flex flex-wrap gap-7 px-5 pb-5">
+                      <ul className="flex min-w-0 flex-[1_1_300px] flex-col gap-2.5">
+                        {plan.features.map((feat) => (
+                          <li key={feat} className="flex items-start gap-2.5 text-[15px] leading-snug">
+                            <span className="lz-tic" aria-hidden="true">✓</span>
+                            {feat}
+                          </li>
+                        ))}
+                      </ul>
+                      {requiresCohort(clave) && !cargandoCohorte && (
+                        <Link
+                          href="/horarios"
+                          className="basis-full text-[14px] font-bold text-lz-grape underline underline-offset-2"
+                        >
+                          Ver los horarios de clase publicados
+                        </Link>
+                      )}
+                      {plan.esFamilia && plan.ramas.length > 0 && (
+                        <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-2">
+                          <p className="text-[14px] font-bold">¿Cuántas sesiones por semana?</p>
+                          <EscaleraDeRamas
+                            ramas={plan.ramas}
+                            elegidaKey={plan.elegida?.key}
+                            onElegir={(key) => {
+                              setRamaPorFamilia((prev) => ({ ...prev, [clave]: key }));
+                              setElegida(clave);
+                            }}
+                            colorTexto="#1e1029"
+                            colorBorde="#cdb8da"
+                            fondoActivo="#82159e"
+                            textoActivo="#ffffff"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </article>
             );
           })}
         </div>
 
-        {/* ── Comparar lado a lado (2026-10-17) ──
-            Girar cuatro cartas una por una para comparar precios obliga a
-            ACORDARSE de cada una. Aquí van juntas, con los mismos datos que las
-            cartas: misma rama elegida, mismo precio, misma nota de cobro. */}
-        <section id="comparar" className="w-full max-w-5xl mx-auto px-4 mt-10 mb-12 scroll-mt-24">
-          <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-white">
-            Compara los planes
-          </h2>
-          <p className="mt-2 text-center text-[13px] text-white/70">
-            Todos incluyen el Método 590 completo y la plataforma.
-          </p>
-          <div className="mt-5 overflow-x-auto rounded-2xl bg-white shadow-lg">
-            <table className="w-full min-w-[560px] border-collapse text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-zinc-200">
-                  <th className="sticky left-0 z-10 bg-white px-4 py-3 text-[11px] font-extrabold uppercase tracking-widest text-zinc-400">
-                    Plan
-                  </th>
-                  {cartas.map((plan) => (
-                    <th key={plan.id} className="px-4 py-3 align-bottom">
-                      {esRecomendado(plan) && (
-                        <span className="mb-1 inline-block rounded-full bg-[#fde68a] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#7a4a00]">
-                          Para ti
-                        </span>
-                      )}
-                      <span className="block text-[15px] font-extrabold" style={{ color: plan.btnColor }}>
-                        {plan.name.replace(/\s+/g, " ")}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="text-zinc-700">
-                <FilaComparar titulo="Precio" celdas={cartas.map((plan) => (
-                  <span key={plan.id}>
-                    <strong className="text-[16px] text-zinc-900">{plan.price}</strong>{" "}
-                    <span className="text-zinc-500">{plan.priceUnit}</span>
-                    {plan.esFamilia && (
-                      <span className="block text-[11px] text-zinc-500">según las clases por semana que elijas</span>
-                    )}
-                  </span>
-                ))} />
-                <FilaComparar titulo="Cobro" celdas={cartas.map((plan) => plan.billingNote)} />
-                <FilaComparar titulo="Clases" celdas={cartas.map((plan) =>
-                  plan.clasesLinea ?? (plan.tieneClases === false ? "Sin clases en vivo" : "—"),
-                )} />
-                <FilaComparar titulo="Empiezas" celdas={cartas.map((plan) =>
-                  cargandoCohorte
-                    ? "…"
-                    : requiresCohort(String(plan.claveDelPlan))
-                      ? "Con tu grupo, en la fecha que elijas"
-                      : "Hoy mismo",
-                )} />
-                <FilaComparar titulo="Garantía" celdas={cartas.map(() => "3 días (1.ª inscripción)")} />
-                <tr>
-                  <td className="sticky left-0 bg-white px-4 py-3" />
-                  {cartas.map((plan) => (
-                    <td key={plan.id} className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleSeleccionar(plan)}
-                        className="rounded-full px-5 py-2 text-[13px] font-extrabold text-white transition hover:opacity-90 active:scale-95"
-                        style={{ backgroundColor: plan.btnColor }}
-                      >
-                        Seleccionar
-                      </button>
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
+        <p className="text-center text-[14px] text-lz-ink2">
+          ¿Dudas? Las respuestas a lo más preguntado están en el{" "}
+          <Link href="/#preguntas" className="font-bold text-lz-grape underline">inicio</Link>.
+        </p>
+      </div>
+
+      {!(cartaElegida && claveCobrada) && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-lz-bd bg-white/95 backdrop-blur">
+          <div className="lz-wrap flex max-w-[960px] flex-wrap items-center gap-3 py-3">
+            <p className="min-w-0 flex-1 basis-[240px] text-[15px] font-semibold text-lz-ink2">
+              Elige un plan para continuar
+            </p>
+            <button type="button" disabled className="lz-btn lz-btn-1 min-h-[52px]">
+              Continuar
+            </button>
           </div>
-        </section>
-      </div>
+        </div>
+      )}
 
-      {/* Testimonios */}
-      <div className="bg-white">
-        <TestimonialsSection />
-      </div>
-
-      {/* FAQ */}
-      <div className="bg-white">
-        <PreguntasFrecuentes />
-      </div>
+      {cartaElegida && claveCobrada && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-lz-bd bg-white/95 backdrop-blur">
+          <div className="lz-wrap flex max-w-[960px] flex-wrap items-center gap-3 py-3">
+            <div className="flex min-w-0 flex-1 basis-[240px] flex-col">
+              <b className="text-[16px]">
+                {nombreDe(cartaElegida)} · {cartaElegida.price}
+                <span className="font-normal text-lz-ink3"> {cartaElegida.priceUnit}</span>
+              </b>
+              <span className="text-[13px] text-lz-ink2">
+                {/* Sin catálogo no se sabe si va por grupo: no se promete nada. La
+                    cohorte que manda es la de la clave que se COBRA (la rama). */}
+                {cargandoCohorte || estadoDelCatalogo !== "listo"
+                  ? cartaElegida.billingNote
+                  : requiresCohort(claveCobrada)
+                    ? "Eliges tu fecha y tu horario en el siguiente paso"
+                    : "Empiezas hoy mismo"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSeleccionar(cartaElegida)}
+              className="lz-btn lz-btn-1 min-h-[52px]"
+            >
+              Continuar con {nombreDe(cartaElegida)}
+            </button>
+          </div>
+        </div>
+      )}
 
     </main>
   );

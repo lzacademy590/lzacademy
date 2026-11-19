@@ -96,12 +96,18 @@ const PaymentForm = ({
     // Si el correo ya tiene una suscripción activa, avisamos antes del checkout.
     const [existingSub, setExistingSub] = useState<{ plan: string; periodEnd: string | null; cancelAtPeriodEnd: boolean } | null>(null);
     const [subModal, setSubModal] = useState<null | "confirm" | "blocked">(null);
-    const { dates: allDates } = useStartDates();
+    const { dates: allDates, loading: cargandoFechas } = useStartDates();
     const { isLevelAvailable } = useLevelAvailability();
     const { requiresCohort, loading: cohorteLoading } = usePlanCohorte();
     // Essential empieza el mismo día del pago: no elige fecha ni la envía.
     const needsCohorte = requiresCohort(plan);
+    /*
+      Un plan por grupo sin ninguna fecha abierta (2026-11-18, ronda de agentes):
+      el selector salía vacío, sin un mensaje, y el botón solo respondía
+      «Selecciona un elemento de la lista». Ahora se dice y no se deja pagar.
+    */
     const availableDates = allDates.filter(d => !d.excludedPlans?.includes(plan));
+    const sinFechasAbiertas = needsCohorte && !cohorteLoading && !cargandoFechas && availableDates.length === 0;
     const [formData, setFormData] = useState({
         email: "",
         emailConfirm: "",
@@ -451,18 +457,18 @@ const PaymentForm = ({
                 {/* Encabezado */}
                 <div className="text-center mb-6">
                     {embedded && (
-                        <ProgresoDelEmbudo paso={4} />
+                        <ProgresoDelEmbudo paso={3} className="mx-auto mb-3" />
                     )}
                     <h2 className="text-2xl font-extrabold text-zinc-900 sm:text-3xl">
-                        {embedded ? "¡Ya casi terminas!" : "Comenzá tu camino en inglés"}
+                        {embedded ? "¡Ya casi terminas!" : "Comienza tu camino en inglés"}
                     </h2>
                     <p className="mt-1.5 text-sm text-zinc-500">
                         {embedded
                             ? "Confirma tus datos y reservamos tu cupo."
-                            : "Completá el formulario y te reservamos tu cupo en el Plan que elijas."}
+                            : "Completa el formulario y te reservamos tu cupo en el Plan que elijas."}
                     </p>
                     {embedded && (
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold" style={{ backgroundColor: "#fadadd", color: "#C0353E" }}>
+                        <div className="mt-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold" style={{ backgroundColor: "#f7f0fb", color: "#82159e" }}>
                             {/*
                                 ⚠️ El NOMBRE comercial, no la clave. Con los cinco de
                                 siempre no se distinguía —la clave de Essential ES
@@ -477,7 +483,7 @@ const PaymentForm = ({
                         </div>
                     )}
                     {embedded && isSubscription && (
-                        <p className="mt-1.5 text-xs text-zinc-400">Facturación automática cada 4 semanas</p>
+                        <p className="mt-1.5 text-xs text-zinc-600">Facturación automática cada 4 semanas</p>
                     )}
                     {!embedded && (
                         <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-zinc-600 ring-1 ring-inset ring-zinc-200">
@@ -738,6 +744,14 @@ const PaymentForm = ({
                                             </svg>
                                         </div>
                                     </div>
+                                    {sinFechasAbiertas && (
+                                        <p role="alert" className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+                                            Por ahora no hay un grupo abierto para este plan, así que no se puede pagar
+                                            todavía. Vuelve a los planes para elegir otro, o déjanos tus datos en{" "}
+                                            <a href="/interes" className="font-semibold underline">esta página</a> y te
+                                            escribimos con la información.
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
@@ -986,7 +1000,7 @@ const PaymentForm = ({
                         {/* CTA */}
                         <button
                             type="submit"
-                            disabled={loading || !accepted || cohorteLoading}
+                            disabled={loading || !accepted || cohorteLoading || sinFechasAbiertas}
                             className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white bg-falu-red-700 hover:bg-falu-red-800 active:bg-falu-red-900 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
                             {loading ? (
@@ -1008,13 +1022,13 @@ const PaymentForm = ({
 
                         {/* Trust badges */}
                         <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
-                            <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+                            <span className="flex items-center gap-1.5 text-xs text-zinc-600">
                                 <svg className="h-3.5 w-3.5 text-green-500" viewBox="0 0 16 16" fill="none">
                                     <path d="M8 2l1.5 4.5H14l-3.5 2.5 1.5 4.5L8 11l-4 2.5 1.5-4.5L2 6.5h4.5L8 2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                                 </svg>
                                 Pago seguro vía Stripe
                             </span>
-                            <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+                            <span className="flex items-center gap-1.5 text-xs text-zinc-600">
                                 <svg className="h-3.5 w-3.5 text-green-500" viewBox="0 0 16 16" fill="none">
                                     <path d="M13 4L6.5 11 3 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>

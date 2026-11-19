@@ -49,6 +49,28 @@ const nextConfig: NextConfig = {
             permanent: true,
           }))
         : []),
+      /*
+        Rediseño «sitio simple» (2026-11-18, HU-LZ-EMB): las páginas que se
+        fusionaron redirigen a su sección de la página nueva. Permanentes, para
+        que Google traspase el posicionamiento y los enlaces viejos sigan vivos.
+
+        ⚠️ Next conserva la query del enlace viejo: `/paso-dos?nivel=B1` llega a
+        `/paso-uno?nivel=B1` y `/premium?nivel=B1` a `/paso-tres?plan=Premium&nivel=B1`.
+        ⚠️ Van ANTES del middleware (`proxy.ts`), así que estas rutas ya no
+        tienen que estar en su lista blanca.
+      */
+      { source: "/como-funciona", destination: "/metodo#semana", permanent: true },
+      { source: "/sesiones", destination: "/metodo#sesiones", permanent: true },
+      { source: "/ciencia", destination: "/metodo#ciencia", permanent: true },
+      { source: "/historia", destination: "/nosotros#historia", permanent: true },
+      { source: "/fundacion", destination: "/nosotros#fundacion", permanent: true },
+      { source: "/paso-dos", destination: "/paso-uno", permanent: true },
+      // Las landings de cada plan (decisión del negocio: no se usan en anuncios).
+      { source: "/essential", destination: "/paso-tres?plan=Essential", permanent: true },
+      { source: "/premium", destination: "/paso-tres?plan=Premium", permanent: true },
+      { source: "/personalizado", destination: "/paso-tres?plan=Personalizado", permanent: true },
+      { source: "/fluidez", destination: "/paso-tres?plan=Fluidez", permanent: true },
+      { source: "/plan/:clave", destination: "/paso-tres?plan=:clave", permanent: true },
       // Rutas de mercado eliminadas → home (301 permanent)
       { source: "/mexico", destination: "/", permanent: true },
       { source: "/colombia", destination: "/", permanent: true },

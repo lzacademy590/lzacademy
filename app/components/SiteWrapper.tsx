@@ -3,13 +3,13 @@
 import { usePathname } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
-import { TopBar } from "./Infosessionsection";
 const WHATSAPP_URL = "https://chat.whatsapp.com/HhAvLoPoLwf1JsX0aWtnX1";
 const DISCORD_URL = "https://discord.gg/uf9xSWBGUA";
 
 function FloatingButtons() {
   return (
-    <div className="fixed bottom-6 right-5 z-50 flex flex-col gap-3">
+    // Solo en escritorio (md+): en el móvil tapaban texto y botones. WhatsApp y Discord siguen en el pie.
+    <div className="fixed bottom-6 right-5 z-50 hidden flex-col gap-3 md:flex">
       {/* Discord */}
       <a
         href={DISCORD_URL}
@@ -49,11 +49,14 @@ export function SiteWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <TopBar />
+      {/* La barra fija de la sesión informativa se retiró (HU-LZ-EMB, criterio 4):
+          ahora sale UNA vez, como opción secundaria al final del inicio. */}
       <Navbar />
       <div className="flex-1">{children}</div>
       <Footer />
-      <FloatingButtons />
+      {/* En el embudo no: en móvil tapaban el botón de «Continuar» de la barra fija
+          del paso 2 y compiten con la única acción de esas pantallas. */}
+      {!pathname.startsWith("/paso-") && <FloatingButtons />}
     </>
   );
 }

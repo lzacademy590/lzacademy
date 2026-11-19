@@ -1,18 +1,25 @@
 "use client";
 
-import Image from "next/image";
+import LogoDeMarca from "./LogoDeMarca";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Container } from "./Container";
+
+/*
+  Barra del sitio simple (2026-11-18, HU-LZ-EMB criterio 11):
+  Método · Nosotros · Planes · Acceder + el botón «Empezar».
+
+  ⚠️ Cuatro entradas y no más, también en móvil. Se retiraron "Inicio" (lo hace
+  el logo), "Interés", "Cómo funciona" (vive dentro de Método) y "Historia" /
+  "Fundación LZ" (viven en Nosotros). Lo de alumnos (suscripción, horario,
+  renovar, legal) va SOLO en el pie: aquí competía con el botón de los nuevos.
+*/
+const URL_PLATAFORMA = "https://app.lainz590.com/login";
 
 const navItems = [
-  { href: "/",              label: "Inicio" },
-  { href: "/interes",       label: "Interés" },
-  { href: "/historia",      label: "Historia" },
-  { href: "/metodo",        label: "Método" },
-  { href: "/como-funciona", label: "Como Funciona" },
-  { href: "/fundacion",     label: "Fundación LZ" },
+  { href: "/metodo", label: "Método" },
+  { href: "/nosotros", label: "Nosotros" },
+  { href: "/paso-tres", label: "Planes" },
 ];
 
 function IconMenu(props: React.SVGProps<SVGSVGElement>) {
@@ -36,7 +43,8 @@ export function Navbar() {
   const pathname = usePathname();
   const firstLinkRef = useRef<HTMLAnchorElement | null>(null);
 
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // El menú se cierra en el onClick de cada enlace (no con un efecto sobre la
+  // ruta: un setState dentro de un efecto re-renderiza en cascada).
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -57,156 +65,100 @@ export function Navbar() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-60 bg-white border-b border-zinc-200">
-      <Container>
-        <div className="flex h-[68px] items-center gap-10">
-
-          {/* ── Logo (izquierda) ── */}
-          <Link href="/" className="flex items-center gap-3 shrink-0">
-            <span className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-black/8 shadow-sm">
-              <Image
-                src="/lzacademy_logo1.png"
-                alt="LZ English Academy"
-                fill
-                sizes="48px"
-                className="object-cover"
-                priority
-              />
-            </span>
-            <div className="leading-snug">
-              <p className="text-[15px] font-bold text-zinc-900 tracking-tight">LZ English Academy</p>
-              <p className="text-[12px] font-normal text-zinc-500">Método 590</p>
-            </div>
+    <header className="sticky top-0 z-60 border-b border-lz-bd bg-white">
+      <div className="lz-wrap">
+        <div className="flex h-[72px] items-center gap-6">
+          <Link href="/" aria-label="LZ English Academy · ir al inicio" className="shrink-0">
+            <LogoDeMarca className="h-10 max-w-[180px]" />
           </Link>
 
-          {/* ── Nav links centrados (desktop) ── */}
-          <nav className="hidden md:flex flex-1 items-center justify-center gap-8">
+          <nav aria-label="Principal" className="ml-auto hidden items-center gap-1 md:flex">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const activo = pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={[
-                    "text-[15px] font-bold transition-colors duration-150 whitespace-nowrap",
-                    isActive
-                      ? "text-[#C0353E]"
-                      : "text-zinc-800 hover:text-[#C0353E]",
-                  ].join(" ")}
+                  aria-current={activo ? "page" : undefined}
+                  className={`inline-flex min-h-11 items-center rounded-full px-4 text-[15px] font-bold transition ${
+                    activo ? "bg-lz-lila text-lz-grape" : "text-lz-ink hover:bg-lz-lila"
+                  }`}
                 >
                   {item.label}
                 </Link>
               );
             })}
+            <a
+              href={URL_PLATAFORMA}
+              className="inline-flex min-h-11 items-center rounded-full px-4 text-[15px] font-bold text-lz-ink transition hover:bg-lz-lila"
+            >
+              Acceder
+            </a>
           </nav>
 
-          {/* CTA desktop — acceso a la plataforma */}
-          <div className="hidden md:flex shrink-0 w-[200px] justify-end">
-            <a
-              href="https://app.lainz590.com/login"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#C0353E] px-4 py-2 text-[13px] font-bold text-[#C0353E] transition hover:bg-[#C0353E] hover:text-white"
-            >
-              Acceder →
-            </a>
-          </div>
+          <Link href="/paso-uno" className="lz-btn lz-btn-1 lz-btn-sm hidden md:inline-flex">
+            Empezar
+          </Link>
 
-          {/* ── Mobile hamburger ── */}
-          <div className="flex md:hidden flex-1 justify-end">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50 transition"
-              aria-label="Abrir menú"
-              aria-expanded={open}
-            >
-              <IconMenu className="h-5 w-5 text-zinc-700" />
-            </button>
-          </div>
-
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="ml-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-lz-bd2 text-lz-ink transition hover:bg-lz-lila md:hidden"
+            aria-label="Abrir menú"
+            aria-expanded={open}
+          >
+            <IconMenu className="h-6 w-6" />
+          </button>
         </div>
-      </Container>
+      </div>
 
-      {/* ══════ MOBILE OVERLAY ══════ */}
       {open && (
-        <div
-          className="fixed inset-0 z-70 md:hidden"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menú móvil"
-        >
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-70 md:hidden" role="dialog" aria-modal="true" aria-label="Menú">
           <button
             type="button"
             aria-label="Cerrar menú"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/30"
+            className="absolute inset-0 bg-lz-ink/40"
           />
-
-          {/* Panel */}
-          <div className="absolute inset-x-0 top-0 bg-white border-b border-zinc-200 shadow-lg">
-            <Container>
-              {/* Header row */}
-              <div className="flex h-[68px] items-center justify-between">
-                <Link href="/" onClick={() => setOpen(false)} className="flex items-center gap-3">
-                  <span className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-black/8 shadow-sm">
-                    <Image
-                      src="/lzacademy_logo1.png"
-                      alt="LZ English Academy"
-                      fill
-                      sizes="48px"
-                      className="object-cover"
-                      priority
-                    />
-                  </span>
-                  <div className="leading-snug">
-                    <p className="text-[15px] font-bold text-zinc-900">LZ English Academy</p>
-                    <p className="text-[12px] text-zinc-500">Método 590</p>
-                  </div>
+          <div className="absolute inset-x-0 top-0 border-b border-lz-bd bg-white shadow-lg">
+            <div className="lz-wrap">
+              <div className="flex h-[72px] items-center justify-between">
+                <Link href="/" onClick={() => setOpen(false)} aria-label="Ir al inicio">
+                  <LogoDeMarca className="h-10 max-w-[180px]" />
                 </Link>
-
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50 transition"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-lz-bd2 text-lz-ink"
                   aria-label="Cerrar menú"
                 >
-                  <IconX className="h-5 w-5 text-zinc-700" />
+                  <IconX className="h-6 w-6" />
                 </button>
               </div>
-
-              {/* Links */}
-              <nav className="pb-6 pt-1 flex flex-col gap-1">
-                {navItems.map((item, idx) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      ref={idx === 0 ? firstLinkRef : null}
-                      onClick={() => setOpen(false)}
-                      className={[
-                        "flex items-center justify-between rounded-xl px-4 py-3.5 text-[15px] font-bold transition",
-                        isActive
-                          ? "text-[#C0353E] bg-red-50"
-                          : "text-zinc-800 hover:text-[#C0353E] hover:bg-red-50",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                      <span className="text-[#C0353E] opacity-40 text-lg">›</span>
-                    </Link>
-                  );
-                })}
-
-                {/* CTA acceso plataforma */}
+              <nav aria-label="Menú móvil" className="flex flex-col pb-6">
+                {navItems.map((item, idx) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    ref={idx === 0 ? firstLinkRef : null}
+                    onClick={() => setOpen(false)}
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className="flex min-h-[52px] items-center border-b border-lz-bd text-[18px] font-bold text-lz-ink"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
                 <a
-                  href="https://app.lainz590.com/login"
-                  onClick={() => setOpen(false)}
-                  className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-[#C0353E] px-4 py-3.5 text-[15px] font-bold text-white transition hover:bg-[#a82d35]"
+                  href={URL_PLATAFORMA}
+                  className="flex min-h-[52px] items-center border-b border-lz-bd text-[18px] font-bold text-lz-ink"
                 >
-                  Acceder a la plataforma →
+                  Acceder
                 </a>
+                <Link href="/paso-uno" onClick={() => setOpen(false)} className="lz-btn lz-btn-1 mt-5 w-full">
+                  Empezar
+                </Link>
               </nav>
-            </Container>
+            </div>
           </div>
         </div>
       )}

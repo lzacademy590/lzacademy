@@ -39,7 +39,7 @@ function etiquetaDeNivel(nivel: string) {
     return `Nivel ${nivel.replace("_", ".")}`;
 }
 
-const testimonials: Testimonial[] = [
+export const testimonials: Testimonial[] = [
     {
         name: "Susan Pérez",
         country: "Guatemala",

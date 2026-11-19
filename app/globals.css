@@ -1,30 +1,170 @@
 @import "tailwindcss";
 @theme {
-  /* falu-red */
-  --color-falu-red-50: #fef2f2;
-  --color-falu-red-100: #ffe1e2;
-  --color-falu-red-200: #ffc9cb;
-  --color-falu-red-300: #fea3a6;
-  --color-falu-red-400: #fc6d72;
-  --color-falu-red-500: #f43f46;
-  --color-falu-red-600: #e12128;
-  --color-falu-red-700: #bd181e;
-  --color-falu-red-800: #9c181d;
-  --color-falu-red-900: #851b1f;
-  --color-falu-red-950: #47080a;
+  /* ── Marca 2026 (rediseño «sitio simple», propuesta A) ────────────────────
+     Grape Purple #82159E (acciones y titulares), Dark Violet #5E108B (fondos
+     oscuros y hover), Fucsia Flamingo #EC1CB6 (solo acento, como la Z del logo).
 
-  /* yellow-orange */
-  --color-yellow-orange-50: #fff8eb;
-  --color-yellow-orange-100: #feeac7;
-  --color-yellow-orange-200: #fdd48a;
-  --color-yellow-orange-300: #fbb03b;
-  --color-yellow-orange-400: #fa9e25;
-  --color-yellow-orange-500: #f47a0c;
-  --color-yellow-orange-600: #d85607;
-  --color-yellow-orange-700: #b3390a;
-  --color-yellow-orange-800: #922b0e;
-  --color-yellow-orange-900: #78250f;
-  --color-yellow-orange-950: #451003;
+     ⚠️ `falu-red` y `yellow-orange` CONSERVAN su nombre y cambian de color a
+     propósito: los usan ~48 archivos (admin incluido), y re-mapear la escala
+     rebrandea todo de una vez. falu-red-700 es el botón (#82159E) y falu-red-800
+     el texto y el hover (#5E108B), igual que antes lo eran del rojo.
+     Los hex escritos a mano (#9c181d, #bd181e, #C0353E…) NO se mueven con esto:
+     las pantallas públicas rediseñadas usan los tokens `lz-*` de abajo. */
+  --color-falu-red-50: #f7f0fb;
+  --color-falu-red-100: #eeddf6;
+  --color-falu-red-200: #e0c2ee;
+  --color-falu-red-300: #cb98e0;
+  --color-falu-red-400: #b066cd;
+  --color-falu-red-500: #9a3bb8;
+  --color-falu-red-600: #8a22a8;
+  --color-falu-red-700: #82159e;
+  --color-falu-red-800: #5e108b;
+  --color-falu-red-900: #4a0d6e;
+  --color-falu-red-950: #2e0846;
+
+  /* El antiguo naranja de acento pasa a ser el fucsia. */
+  --color-yellow-orange-50: #fef1fa;
+  --color-yellow-orange-100: #fde0f4;
+  --color-yellow-orange-200: #fbc1ea;
+  --color-yellow-orange-300: #f78fda;
+  --color-yellow-orange-400: #f15dc8;
+  --color-yellow-orange-500: #ec1cb6;
+  --color-yellow-orange-600: #c9119a;
+  --color-yellow-orange-700: #a30e7d;
+  --color-yellow-orange-800: #820d64;
+  --color-yellow-orange-900: #6a0e52;
+  --color-yellow-orange-950: #42022f;
+
+  /* Tokens semánticos del sitio (los del canvas de diseño, `hu.css` .pa). */
+  --color-lz-ink: #1e1029;
+  --color-lz-ink2: #4e4458;
+  --color-lz-ink3: #6a5f74;
+  --color-lz-lila: #f7f0fb;
+  --color-lz-lila2: #eeddf6;
+  --color-lz-bd: #e6d9ee;
+  --color-lz-bd2: #cdb8da;
+  --color-lz-grape: #82159e;
+  --color-lz-violet: #5e108b;
+  --color-lz-fucsia: #ec1cb6;
+  --color-lz-fucsia-claro: #f7b8ea;
+  --color-lz-sobre-oscuro: #eadcf5;
+
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Piezas del sistema visual del sitio público ──────────────────────────────
+   En `@layer components`, no en CSS plano: así una utilidad puesta encima
+   (`mt-4`, `w-full`…) sí les gana. Prefijo `lz-` para no chocar con nada. */
+@layer components {
+  .lz-display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    color: var(--color-lz-ink);
+  }
+  .lz-wrap {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 16px;
+    box-sizing: border-box;
+  }
+  @media (min-width: 640px) {
+    .lz-wrap { padding-inline: 32px; }
+  }
+  .lz-eyebrow {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-lz-grape);
+  }
+  .lz-lead { font-size: 18px; line-height: 1.55; color: var(--color-lz-ink2); }
+  .lz-p { font-size: 16px; line-height: 1.65; color: var(--color-lz-ink2); }
+
+  .lz-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 24px;
+    border-radius: 999px;
+    border: 0;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 16px;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  }
+  .lz-btn:disabled, .lz-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+  .lz-btn-sm { min-height: 44px; font-size: 14px; padding: 0 18px; }
+  .lz-btn-lg { min-height: 56px; font-size: 17px; padding: 0 30px; }
+  /* La única acción principal de cada pantalla. */
+  .lz-btn-1 { background: var(--color-lz-grape); color: #fff; }
+  .lz-btn-1:hover { background: var(--color-lz-violet); }
+  /* Secundaria: contorno. */
+  .lz-btn-2 { background: #fff; color: var(--color-lz-ink); box-shadow: inset 0 0 0 1.5px var(--color-lz-ink); }
+  .lz-btn-2:hover { background: var(--color-lz-lila); }
+  /* Terciaria: solo texto. */
+  .lz-btn-3 { background: transparent; color: var(--color-lz-grape); padding: 0 4px; min-height: 44px; }
+  .lz-btn-3:hover { color: var(--color-lz-violet); }
+  /* Acento fucsia: solo sobre fondo oscuro. */
+  .lz-btn-acento { background: var(--color-lz-fucsia); color: var(--color-lz-ink); }
+  .lz-btn-acento:hover { background: #f04cc5; }
+
+  .lz-card { background: #fff; border: 1px solid var(--color-lz-bd); border-radius: 20px; }
+  .lz-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .lz-pill-lila { background: var(--color-lz-lila2); color: var(--color-lz-violet); }
+  .lz-pill-ambar { background: #fff4dc; color: #7a4a00; }
+  .lz-pill-ok { background: #e6f4ec; color: #0e6e45; }
+
+  .lz-tic {
+    flex: 0 0 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-lz-lila2);
+    color: var(--color-lz-violet);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    font-size: 12px;
+  }
+  /* Opción elegible (nivel, dificultad, plan, fecha, horario). */
+  .lz-opt {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    text-align: left;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    border: 1.5px solid var(--color-lz-bd2);
+    background: #fff;
+    color: var(--color-lz-ink);
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .lz-opt[aria-checked="true"], .lz-opt[aria-pressed="true"] {
+    border-color: var(--color-lz-grape);
+    background: var(--color-lz-lila);
+    box-shadow: 0 0 0 3px var(--color-lz-lila2);
+  }
 }
 
 body,

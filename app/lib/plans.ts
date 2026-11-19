@@ -162,14 +162,14 @@ export const PLAN_LIST: PlanDef[] = [
     chip: { color: "#b45309", bg: "#fffbeb", border: "#fde68a" },
     // Nivel A2+: disponible desde Básico (A2); NO en Principiante (A1).
     levelAvailability: { ...ALL_LEVELS_ON, Principiante: false },
-    checkoutTagline: "Rompé la barrera de hablar con coaching de speaking 1:1.",
+    checkoutTagline: "Rompe la barrera de hablar con coaching de speaking 1:1.",
     checkoutFeatures: [
       "1 Sesión de coaching enfocado en speaking 1:1 semanal",
       "Acceso completo al Método 590",
       "Comunidad en Whatsapp",
       "Diagnóstico de tus bloqueos al hablar",
       "Plan de acción escrito, semana a semana",
-      "Feedback y corrección mientras hablás",
+      "Feedback y corrección mientras hablas",
       "Reporte de tu progreso de fluidez",
       "Enfoque 100% en romper la barrera de hablar",
     ],
