@@ -64,6 +64,18 @@ export function Navbar() {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
+  // `overflow: hidden` no frena el desplazamiento en Safari de iOS: si la
+  // página se mueve con el menú abierto, se cierra (ronda de UX, 2026-11-19).
+  useEffect(() => {
+    if (!open) return;
+    const y = window.scrollY;
+    function onScroll() {
+      if (Math.abs(window.scrollY - y) > 40) setOpen(false);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [open]);
+
   return (
     <header className="sticky top-0 z-60 border-b border-lz-bd bg-white">
       <div className="lz-wrap">

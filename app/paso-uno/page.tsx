@@ -77,8 +77,11 @@ function PasoUnoContent() {
       .filter((d, i, arr) => IDS_DIFICULTAD.includes(d) && arr.indexOf(d) === i),
   );
   const [fase, setFase] = useState<Fase>("menu");
+  // Cómo se llegó al resultado: el texto no puede hablar de "test" a quien no lo hizo.
+  const [porElTest, setPorElTest] = useState(false);
   const [pregunta, setPregunta] = useState(0);
-  const [puntos, setPuntos] = useState(0);
+  // Una respuesta por pregunta (índice elegido, -1 = «No lo sé»): así se puede volver atrás.
+  const [respuestas, setRespuestas] = useState<number[]>([]);
 
   const medido = useRef(false);
   useEffect(() => {
@@ -94,17 +97,24 @@ function PasoUnoContent() {
   useEffect(() => {
     if (!moverFoco.current) return;
     moverFoco.current = false;
-    tituloPanel.current?.focus();
+    tituloPanel.current?.focus({ preventScroll: true });
+    // Que la pregunta se vea entera: en escritorio quedaba medio fuera de pantalla.
+    panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [fase, pregunta]);
 
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
+  const panel = useRef<HTMLElement>(null);
 
   function elegirNivel(code: Opcion) {
     setNivel(code);
     setFase("menu");
     setPregunta(0);
-    setPuntos(0);
+    setRespuestas([]);
     if (code !== "?") medirNivelElegido(code, "lista");
+    else {
+      // El panel del test aparece debajo: llevarlo a la vista para que no quede bajo el pliegue.
+      setTimeout(() => panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 0);
+    }
   }
 
   function teclaEnNiveles(e: KeyboardEvent<HTMLDivElement>) {
@@ -125,29 +135,37 @@ function PasoUnoContent() {
     moverFoco.current = true;
     setFase("test");
     setPregunta(0);
-    setPuntos(0);
+    setRespuestas([]);
   }
 
   function porDefecto() {
     moverFoco.current = true;
     setNivel("A1");
+    setPorElTest(false);
     setFase("res");
     medirNivelElegido("A1", "por_defecto");
   }
 
   function responder(j: number) {
-    const total = puntos + (j === PREGUNTAS[pregunta][2] ? 1 : 0);
+    const nuevas = [...respuestas.slice(0, pregunta), j];
+    setRespuestas(nuevas);
     moverFoco.current = true;
     if (pregunta === PREGUNTAS.length - 1) {
+      const total = nuevas.filter((r, i) => r === PREGUNTAS[i][2]).length;
       const resultado = nivelPorPuntos(total);
-      setPuntos(total);
       setNivel(resultado);
+      setPorElTest(true);
       setFase("res");
       medirNivelElegido(resultado, "test");
     } else {
-      setPuntos(total);
       setPregunta(pregunta + 1);
     }
+  }
+
+  function anterior() {
+    if (pregunta === 0) return;
+    moverFoco.current = true;
+    setPregunta(pregunta - 1);
   }
 
   function toggle(id: string) {
@@ -161,9 +179,13 @@ function PasoUnoContent() {
   function continuar() {
     if (!listo) return;
     medirDificultades(difs);
-    router.push(
-      `/paso-tres?nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(difs.join(","))}`,
-    );
+    const query = `nivel=${encodeURIComponent(nivel)}&dificultades=${encodeURIComponent(difs.join(","))}`;
+    // Se apunta lo elegido en ESTA entrada del historial: así el «atrás» del
+    // navegador desde /paso-tres vuelve con las respuestas, no en blanco.
+    // ⚠️ `history.replaceState` y no `router.replace`: seguido de `router.push`,
+    // el replace del router se pierde (medido en el navegador).
+    window.history.replaceState(window.history.state, "", `/paso-uno?${query}`);
+    router.push(`/paso-tres?${query}`);
   }
 
   return (
@@ -206,9 +228,17 @@ function PasoUnoContent() {
                   >
                     {n.code}
                   </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <b className="text-[17px]">{n.name}</b>
                     <span className="text-[14px] text-lz-ink2">{n.desc}</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-[26px] w-[26px] flex-[0_0_26px] items-center justify-center rounded-full border-[1.5px] text-[14px] font-bold text-white ${
+                      on ? "border-lz-grape bg-lz-grape" : "border-lz-bd2 bg-white"
+                    }`}
+                  >
+                    {on ? "✓" : ""}
                   </span>
                 </button>
               );
@@ -217,6 +247,7 @@ function PasoUnoContent() {
 
           {mostrarPanel && (
             <section
+              ref={panel}
               aria-label="Descubre tu nivel"
               className="lz-card flex flex-col gap-4 p-5 sm:p-6 border-lz-grape"
             >
@@ -225,7 +256,7 @@ function PasoUnoContent() {
                   <h2 ref={tituloPanel} tabIndex={-1} className="lz-display font-display text-[24px] sm:text-[28px] outline-none">
                     Lo averiguamos aquí mismo
                   </h2>
-                  <p className="lz-p">Dos caminos. Ninguno te saca del sitio.</p>
+                  <p className="lz-p">Elige cómo averiguarlo. El test rápido no te saca del sitio.</p>
                   <div className="flex flex-wrap gap-2.5">
                     <button type="button" onClick={empezarTest} className={`lz-btn lz-btn-1 lz-btn-sm ${FOCO}`}>
                       Test rápido de 5 preguntas
@@ -259,13 +290,27 @@ function PasoUnoContent() {
                       <button
                         key={`${pregunta}-${j}`}
                         type="button"
+                        aria-pressed={respuestas[pregunta] === j}
                         onClick={() => responder(j)}
                         className={`lz-opt min-h-[52px] text-[16px] ${FOCO}`}
                       >
                         {t}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      aria-pressed={respuestas[pregunta] === -1}
+                      onClick={() => responder(-1)}
+                      className={`lz-opt min-h-[52px] text-[16px] text-lz-ink2 ${FOCO}`}
+                    >
+                      No lo sé
+                    </button>
                   </div>
+                  {pregunta > 0 && (
+                    <button type="button" onClick={anterior} className={`lz-btn lz-btn-3 lz-btn-sm self-start ${FOCO}`}>
+                      ← Pregunta anterior
+                    </button>
+                  )}
                 </>
               )}
 
@@ -273,13 +318,13 @@ function PasoUnoContent() {
                 <>
                   <span className="lz-pill lz-pill-lila self-start">Listo</span>
                   <h2 ref={tituloPanel} tabIndex={-1} className="lz-display font-display text-[24px] sm:text-[28px] outline-none">
-                    Te recomendamos empezar en {nivel}
+                    {porElTest ? `Te recomendamos empezar en ${nivel}` : `Empiezas en ${nivel}`}
                   </h2>
                   <p className="lz-p">
                     Ya lo marcamos arriba. Si después ves que no es tu nivel, puedes cambiarlo antes de pagar.
                   </p>
                   <button type="button" onClick={empezarTest} className={`lz-btn lz-btn-3 self-start ${FOCO}`}>
-                    Repetir el test
+                    {porElTest ? "Repetir el test" : "Prefiero hacer el test"}
                   </button>
                 </>
               )}
@@ -332,7 +377,9 @@ function PasoUnoContent() {
           </div>
           {!listo && (
             <p className="-mt-3 text-right text-[13px] text-lz-ink3">
-              Elige tu nivel para continuar.
+              {nivel === "?"
+                ? "Haz el test o empieza en A1 para continuar."
+                : "Elige tu nivel para continuar."}
             </p>
           )}
         </div>

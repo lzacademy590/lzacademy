@@ -111,7 +111,7 @@ export default function PlanesDelInicio() {
               <span className="text-[14px] text-lz-ink3">{unidadDePrecio(p.recurring === true)}</span>
             </p>
             <p className="text-[13px] font-semibold text-lz-ink2">
-              {p.recurring ? "Se renueva cada 28 días · cancelas cuando quieras" : notaDeCobro(false)}
+              {notaDeCobro(p.recurring === true)}
             </p>
             <p className="lz-p text-[15px]">{arte?.resumen ?? p.features.slice(0, 2).join(" · ")}</p>
             {(() => {

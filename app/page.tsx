@@ -8,21 +8,21 @@ import InicioPage from "./inicio/iniciopage";
 import { URL_DEL_SITIO } from "@/app/lib/sitio";
 
 export const metadata: Metadata = {
-  title: "LZ English Academy | Aprende inglés rápido y con propósito",
+  title: "Lainz 590 | Aprende inglés rápido y con propósito",
   description:
     "Aprende inglés en 90 días con LZ English Academy usando el Método 590. Sesiones diarias, speaking real y planes Essential y Premium adaptados a tu nivel.",
   alternates: {
     canonical: `${URL_DEL_SITIO}/`,
   },
   openGraph: {
-    title: "LZ English Academy | Aprende inglés rápido y con propósito",
+    title: "Lainz 590 | Aprende inglés rápido y con propósito",
     description:
       "Transforma tu inglés en 90 días con el Método 590: sesiones guiadas, speaking real y planes adaptados a tu nivel.",
     url: `${URL_DEL_SITIO}/`,
     images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
   },
   twitter: {
-    title: "LZ English Academy | Aprende inglés rápido y con propósito",
+    title: "Lainz 590 | Aprende inglés rápido y con propósito",
     description:
       "Transforma tu inglés en 90 días con el Método 590: sesiones guiadas, speaking real y planes adaptados a tu nivel.",
     images: [`${URL_DEL_SITIO}/og-image.png`],

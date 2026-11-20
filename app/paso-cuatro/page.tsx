@@ -173,7 +173,7 @@ function PasoCuatroContent() {
         <p className="max-w-md text-[14px] font-medium text-zinc-600">
           {estadoDelCatalogo === 'fallo'
             ? "Ha sido un problema nuestro, no de tu enlace. Vuelve a intentarlo."
-            : "Puede que se haya retirado o que el enlace esté mal. Estos son los planes que puedes contratar ahora mismo."}
+            : "Puede que se haya retirado o que el enlace esté mal. En «Ver los planes» están los que puedes contratar ahora mismo."}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {estadoDelCatalogo === 'fallo' && (

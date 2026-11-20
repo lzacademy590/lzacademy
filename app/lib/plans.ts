@@ -86,7 +86,7 @@ export const PLAN_LIST: PlanDef[] = [
       "Acceso completo al Método 590",
       "Plataforma con material organizado por sesión y nivel",
       "Comunidad en WhatsApp",
-      "Clases de práctica en vivo los viernes",
+      "Práctica en vivo de los viernes",
     ],
   },
   {
@@ -111,8 +111,8 @@ export const PLAN_LIST: PlanDef[] = [
       // ⚠️ Sin FRECUENCIA ni DÍAS: los pone `conLaFraseDeClases` desde el
       // catálogo. Escritos aquí decían "diaria" mientras la regla son lunes a
       // jueves, y esta cadena acaba dentro del recibo de Stripe.
-      "1 hora de clase en vivo",
-      "Reuniones de práctica los viernes",
+      "1 hora de clase en vivo con tu grupo",
+      "Práctica en vivo de los viernes",
       "Práctica hablada diaria y acompañamiento constante",
     ],
   },
@@ -135,11 +135,12 @@ export const PLAN_LIST: PlanDef[] = [
     },
     checkoutTagline: "Acompañamiento 1:1 totalmente a tu medida.",
     checkoutFeatures: [
-      "Todo lo del Plan Premium",
+      // ⚠️ NO "Todo lo del Plan Premium" (2026-11-19, segunda ronda de UX): Personalizado
+      // no lleva las clases de grupo de Premium, y /paso-tres no lo decía.
       // ⚠️ Sin el NÚMERO: lo pone `conLaFraseDeClases`. Decía 3 y el catálogo
       // dice 1 — y este texto llega al recibo de Stripe.
       "Sesiones privadas 1:1 adaptadas a ti",
-      "1 sesión de práctica grupal cada viernes",
+      "Práctica en vivo de los viernes",
       "Acceso completo al Método 590",
       "Horario flexible para tus sesiones privadas",
       "Plan de trabajo personalizado desde el día 1",

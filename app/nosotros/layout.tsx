@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: DESCRIPCION,
   alternates: { canonical: `${URL_DEL_SITIO}/nosotros` },
   openGraph: {
-    title: "Nosotros | LZ English Academy",
+    title: "Nosotros | Lainz 590",
     description: DESCRIPCION,
     url: `${URL_DEL_SITIO}/nosotros`,
     images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],

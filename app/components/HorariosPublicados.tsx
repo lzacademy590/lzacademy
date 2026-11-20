@@ -226,7 +226,8 @@ export default function HorariosPublicados({
                         {nivelVisto
                             ? `Todavía no hay horarios publicados para ${nombreDeNivel(nivelVisto)}. `
                             : "Pronto publicaremos los horarios del próximo inicio. "}
-                        Escríbenos por WhatsApp y te avisamos.
+                        {/* Antes decía "Escríbenos por WhatsApp" sin enlace (ronda de UX, 2026-11-19). */}
+                        <a href="/interes" className="font-semibold text-lz-grape underline">Déjanos tus datos y te avisamos</a>.
                     </p>
                 )}
 

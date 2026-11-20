@@ -601,7 +601,7 @@ const SuccessContent = () => {
                                             <path d="M8 5v1.5m0 3V11m-1.5-5.5h2.25a1.25 1.25 0 010 2.5H7m0 0h2.5" strokeLinecap="round" />
                                         </svg>
                                         {isSubscription
-                                            ? `Suscripción · $${(amount / 100).toFixed(0)} USD · se renueva cada 4 semanas`
+                                            ? `Suscripción · $${(amount / 100).toFixed(0)} USD · se renueva cada 28 días`
                                             : `28 días de acceso · $${(amount / 100).toFixed(0)} USD · sin renovación automática`}
                                     </span>
                                 )}
@@ -726,7 +726,7 @@ const SuccessContent = () => {
                                                 <p className="sc-date-label">Próximo cobro automático</p>
                                                 <p className="sc-date-value">{nextChargeDate}</p>
                                                 <p style={{ fontSize: "0.75rem", color: "#71717a", margin: "3px 0 0", lineHeight: 1.5 }}>
-                                                    Este pago cubre tu primer periodo. Después se cobra ${amount !== null ? `${(amount / 100).toFixed(0)} USD ` : ""}cada 4 semanas; cancela cuando quieras desde tu portal de suscripción.
+                                                    Este pago cubre tu primer periodo. Después se cobra ${amount !== null ? `${(amount / 100).toFixed(0)} USD ` : ""}cada 28 días; cancela cuando quieras desde tu portal de suscripción.
                                                 </p>
                                             </div>
                                         </div>

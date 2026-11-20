@@ -41,23 +41,26 @@ export default function MiSuscripcionPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4 py-16">
+    <main className="min-h-screen bg-lz-lila flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-800 mb-5 shadow-lg">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-lz-grape mb-5">
             <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-extrabold text-zinc-900">Gestiona tu suscripción</h1>
-          <p className="mt-2 text-sm text-zinc-500 max-w-xs mx-auto">
-            Desde aquí puedes recibir un enlace para gestionar o cancelar tu suscripción (Essential o Premium).
+          <h1 className="lz-display font-display text-[30px] text-lz-ink">Gestiona tu suscripción</h1>
+          <p className="mt-2 text-sm text-zinc-600 max-w-sm mx-auto">
+            Si tu plan se renueva solo (Essential o Premium), te enviamos un enlace para cambiar tu tarjeta o
+            cancelar. Los planes de pago único (Personalizado, Fluidez) no se renuevan solos: para volver a
+            pagar, ve a{" "}
+            <a href="/pago-estudiantes" className="font-semibold text-lz-grape underline">Renovar mi plan</a>.
           </p>
         </div>
 
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
-          <div className="h-1.5 w-full bg-linear-to-r from-falu-red-700 via-falu-red-500 to-yellow-orange-400" />
+          <div className="h-1.5 w-full bg-linear-to-r from-lz-violet via-lz-grape to-lz-fucsia" />
 
           {sent ? (
             <div className="p-6 sm:p-8 space-y-4 text-center">

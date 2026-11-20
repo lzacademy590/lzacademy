@@ -14,7 +14,7 @@ import HorariosPublicados from "@/app/components/HorariosPublicados";
 
 export default function HorariosPage() {
   return (
-    <main className="min-h-screen bg-[#fdf7f4] px-4 py-10 sm:py-14">
+    <main className="min-h-screen bg-lz-lila px-4 py-10 sm:py-14">
       <div className="mx-auto w-full max-w-[820px]">
         <h1 className="text-3xl sm:text-4xl font-black text-zinc-900">Horarios de clase</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-zinc-700">
