@@ -54,7 +54,8 @@ export function unidadDePrecio(recurrente: boolean): string {
 
 export function notaDeCobro(recurrente: boolean): string {
   return recurrente
-    ? `Facturación automática cada ${DIAS_DEL_PERIODO} días`
+    // La MISMA frase en todo el sitio (2026-11-19, ronda de UX: había tres).
+    ? `Se renueva cada ${DIAS_DEL_PERIODO} días · cancelas cuando quieras`
     : `Pago único · cubre ${DIAS_DEL_PERIODO} días de acceso`;
 }
 

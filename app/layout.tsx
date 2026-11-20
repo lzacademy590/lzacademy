@@ -42,17 +42,15 @@ const BASE_URL = URL_DEL_SITIO;
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: "LZ English Academy | Aprende inglés en 90 días",
-    template: "%s | LZ English Academy",
+    default: "Lainz 590 | Aprende inglés en 90 días",
+    template: "%s | Lainz 590",
   },
   description:
     "Aprende inglés en 90 días con el Método 590. Rutina de 5 sesiones diarias diseñada para construir fluidez real.",
-  icons: {
-    icon: "/lzacademy_logo2.png",
-    apple: "/lzacademy_logo2.png",
-  },
+  // El favicon y el icono de Apple los ponen app/icon.png y app/apple-icon.png
+  // (logo Lainz 590), por convención de archivos de Next: no hace falta `icons`.
   openGraph: {
-    siteName: "LZ English Academy",
+    siteName: "Lainz 590",
     type: "website",
     locale: "es_ES",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],

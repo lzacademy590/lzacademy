@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description: DESCRIPCION,
   alternates: { canonical: `${URL_DEL_SITIO}/metodo` },
   openGraph: {
-    title: "El Método 590 | LZ English Academy",
+    title: "El Método 590 | Lainz 590",
     description: DESCRIPCION,
     url: `${URL_DEL_SITIO}/metodo`,
     images: [{ url: `${URL_DEL_SITIO}/og-image.png`, width: 1200, height: 630 }],
@@ -249,7 +249,7 @@ export default function MetodoPage() {
           <h2 className="lz-display max-w-[720px] text-[30px] sm:text-[42px]">
             ¿Te imaginas tu día con el método?
           </h2>
-          <p className="lz-lead">Responde 2 preguntas y te decimos qué plan te conviene.</p>
+          <p className="lz-lead">Cuéntanos tu nivel y lo que te cuesta, y te decimos qué plan te conviene.</p>
           <Link href="/paso-uno" className="lz-btn lz-btn-1 lz-btn-lg">
             Descubre tu plan en 1 minuto
           </Link>

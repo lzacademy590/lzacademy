@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Términos y Condiciones de uso de LZ English Academy y del Método 590: planes y cobros, acceso y cohortes, cancelación, propiedad intelectual, conducta, responsabilidad, ley aplicable y contacto.",
   alternates: { canonical: `${URL_DEL_SITIO}/terminos` },
   openGraph: {
-    title: "Términos y Condiciones | LZ English Academy",
+    title: "Términos y Condiciones | Lainz 590",
     description:
       "Términos y Condiciones de uso de LZ English Academy y del Método 590.",
     url: `${URL_DEL_SITIO}/terminos`,

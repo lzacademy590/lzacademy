@@ -241,7 +241,7 @@ export default function InicioPage() {
           <p className="lz-p text-center">
             ¿No sabes cuál?{" "}
             <Link href="/paso-uno" onClick={() => medirCtaInicio("planes")} className="font-bold text-lz-grape underline">
-              Responde 2 preguntas y te lo recomendamos
+              Elige tu nivel y lo que te cuesta, y te lo recomendamos
             </Link>
             .
           </p>
@@ -302,7 +302,7 @@ export default function InicioPage() {
       <section className="bg-lz-violet py-16 text-white lg:py-20">
         <div className="lz-wrap flex flex-col items-center gap-4 text-center">
           <h2 className="lz-display max-w-[760px] text-[32px] text-white sm:text-[44px]">
-            Responde 2 preguntas y te decimos qué plan te conviene
+            Cuéntanos tu nivel y lo que te cuesta, y te decimos qué plan te conviene
           </h2>
           <BotonPrincipal ubicacion="cierre" acento />
           <a

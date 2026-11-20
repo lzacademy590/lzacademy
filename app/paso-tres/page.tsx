@@ -9,6 +9,7 @@ import { fraseDeClases } from "@/app/lib/dias-de-clase";
 import { medirListaDePlanes, medirPaso, medirPlanElegido, medirRecomendacion, type PlanMedido } from "@/app/lib/analitica";
 import { recomendarPlan } from "@/app/lib/recomendacion";
 import { usePlanCohorte } from "@/app/hooks/usePlanCohorte";
+import { useStartDates } from "@/app/hooks/useStartDates";
 import ConfianzaDeCompra from "@/app/components/ConfianzaDeCompra";
 import { unidadDePrecio, notaDeCobro } from "@/app/components/PrecioDelPlan";
 import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
@@ -79,7 +80,7 @@ const PRESENTACION: Record<string, Presentacion> = {
       "Comunidad en WhatsApp",
       "Material organizado por sesiones y nivel",
       "Método paso a paso",
-      "Reuniones de práctica los viernes",
+      "Práctica en vivo de los viernes",
     ],
   },
   Premium: {
@@ -102,7 +103,7 @@ const PRESENTACION: Record<string, Presentacion> = {
       // la landing de Premium, que decía "lunes a miércoles". La frecuencia y
       // los días los pinta `ClasesDelPlan` desde el catálogo, aquí abajo.
       "1 hora de clase en vivo",
-      "Reuniones de práctica los viernes",
+      "Práctica en vivo de los viernes",
       "Explicación clara de teoría",
       "Práctica guiada en cada clase",
       "Práctica hablada diaria",
@@ -114,7 +115,7 @@ const PRESENTACION: Record<string, Presentacion> = {
   Personalizado: {
     id: "personalizada",
     nombre: "Plan\nPersonalizado",
-    subtitle: "Todo lo de Premium, más:",
+    subtitle: "Acompañamiento 1 a 1, con:",
     cardBg: "#a02845",
     nameColor: "#fff",
     checkColor: "#fff",
@@ -126,7 +127,7 @@ const PRESENTACION: Record<string, Presentacion> = {
     muñeca: "/muñecapaso3personalizada.webp",
     features: [
       "Sesiones privadas 1:1 adaptadas a ti",
-      "1 sesión de práctica grupal cada viernes",
+      "Práctica en vivo de los viernes",
       "Acceso completo al Método 590",
       "Horario flexible para tus sesiones privadas",
       "Plan de trabajo personalizado desde el día 1",
@@ -138,6 +139,7 @@ const PRESENTACION: Record<string, Presentacion> = {
   Fluidez: {
     id: "fluidez",
     nombre: "Programa\nde Fluidez",
+    // Fluidez SÍ entra a las clases de grupo de Premium (correo de accesos).
     subtitle: "Todo lo de Premium, más:",
     cardBg: "#8a1f3d",
     nameColor: "#fff",
@@ -372,6 +374,18 @@ function PasosTresContent() {
   const dificultades = searchParams.get("dificultades") ?? "";
   const { isPlanAvailable, cuposLabel } = usePlanCupos();
   const { requiresCohort, loading: cargandoCohorte } = usePlanCohorte();
+  const { dates: fechasAbiertas, loading: cargandoFechas } = useStartDates();
+  /*
+    Un plan con grupo SIN ninguna fecha a la venta no se puede pagar (2026-11-19,
+    segunda ronda de UX): se recomendaba igual y el comprador lo descubría a mitad
+    del formulario, con sus datos ya escritos. Mientras algo carga se responde
+    "no" (fail-open): solo se marca lo que se SABE cerrado.
+  */
+  const sinGrupoAbierto = (clave: string) =>
+    !cargandoCohorte &&
+    !cargandoFechas &&
+    requiresCohort(clave) &&
+    !fechasAbiertas.some((d) => !d.excludedPlans?.includes(clave));
   /*
     Las cards se DERIVAN del catálogo. Ver el bloque de `PRESENTACION` arriba:
     la lista y el precio los manda el backend (y detrás, el admin de la
@@ -618,7 +632,11 @@ function PasosTresContent() {
     `lib/recomendacion.ts`. Solo entre las cartas que se enseñan, y la carta
     recomendada pasa a ser la PRIMERA: en móvil es la que se ve sin hacer scroll.
   */
-  const clavesVisibles = visiblePlans.map((p) => String(p.claveDelPlan)).join(",");
+  // Solo se recomienda lo que hoy se puede pagar.
+  const clavesVisibles = visiblePlans
+    .map((p) => String(p.claveDelPlan))
+    .filter((k) => !sinGrupoAbierto(k))
+    .join(",");
   const recomendacion = useMemo(
     () => recomendarPlan(nivel, dificultades, clavesVisibles.split(",")),
     [nivel, dificultades, clavesVisibles],
@@ -643,6 +661,7 @@ function PasosTresContent() {
   */
   function badgeDe(plan: (typeof visiblePlans)[number]): { text: string; bg: string; color: string } | null {
     if (esRecomendado(plan)) return { text: "Recomendado para ti", bg: "#fde68a", color: "#7a4a00" };
+    if (sinGrupoAbierto(String(plan.claveDelPlan))) return { text: "Sin grupo abierto ahora", bg: "#f4f4f5", color: "#3f3f46" };
     if (!plan.badge) return null;
     if (recomendacion && plan.badge.text === "Recomendado") return null;
     // Para Fluidez usa el conteo real de cupos cuando está disponible.
@@ -826,6 +845,10 @@ function PasosTresContent() {
                     <div className="flex flex-wrap items-center gap-2.5">
                       <h2 className="lz-display text-[26px]">{nombreDe(plan)}</h2>
                       {badge && !rec && <span className="lz-pill lz-pill-ambar">{badge.text}</span>}
+                      {/* Recomendado o no, Fluidez enseña cuántos cupos le quedan (ronda de UX, 2026-11-19). */}
+                      {rec && plan.id === "fluidez" && cuposLabel("Fluidez") && (
+                        <span className="lz-pill lz-pill-ambar">{cuposLabel("Fluidez")}</span>
+                      )}
                     </div>
                     {plan.clasesLinea && !plan.escaleraDiceFrecuencia && (
                       <p className="text-[14px] font-semibold text-lz-ink2">{plan.clasesLinea}</p>
@@ -873,7 +896,7 @@ function PasosTresContent() {
                           </li>
                         ))}
                       </ul>
-                      {requiresCohort(clave) && !cargandoCohorte && (
+                      {requiresCohort(clave) && !cargandoCohorte && !sinGrupoAbierto(clave) && (
                         <Link
                           href="/horarios"
                           className="basis-full text-[14px] font-bold text-lz-grape underline underline-offset-2"
@@ -938,18 +961,27 @@ function PasosTresContent() {
                     cohorte que manda es la de la clave que se COBRA (la rama). */}
                 {cargandoCohorte || estadoDelCatalogo !== "listo"
                   ? cartaElegida.billingNote
+                  : sinGrupoAbierto(claveCobrada)
+                    ? "No hay un grupo abierto ahora. Déjanos tus datos y te avisamos del próximo."
                   : requiresCohort(claveCobrada)
                     ? "Eliges tu fecha y tu horario en el siguiente paso"
                     : "Empiezas hoy mismo"}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => handleSeleccionar(cartaElegida)}
-              className="lz-btn lz-btn-1 min-h-[52px]"
-            >
-              Continuar con {nombreDe(cartaElegida)}
-            </button>
+            {sinGrupoAbierto(claveCobrada) ? (
+              // Antes de escribir nada: el formulario de pago no le dejaría pagar.
+              <Link href="/interes" className="lz-btn lz-btn-1 min-h-[52px]">
+                Avísame del próximo grupo
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSeleccionar(cartaElegida)}
+                className="lz-btn lz-btn-1 min-h-[52px]"
+              >
+                Continuar con {nombreDe(cartaElegida)}
+              </button>
+            )}
           </div>
         </div>
       )}

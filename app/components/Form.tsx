@@ -9,6 +9,7 @@ import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCa
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
 import ProgresoDelEmbudo from "@/app/components/ProgresoDelEmbudo";
+import { notaDeCobro } from "@/app/components/PrecioDelPlan";
 import { listaDeDias } from "@/app/lib/dias-de-clase";
 import { infoDeLaHora, nombreDeLaZona } from "@/app/lib/horario-local";
 import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
@@ -48,6 +49,14 @@ interface HorarioDeClase {
 type PlanType = string;
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
+/** El nombre que lee el comprador para cada valor del selector de nivel. */
+const NOMBRE_DE_NIVEL: Record<string, string> = {
+    Principiante: "Principiante (A1)",
+    Basico: "Básico (A2)",
+    Intermedio: "Intermedio (B1)",
+    "Intermedio alto": "Intermedio alto (B2)",
+};
 
 
 // ─── Subcomponentes de UI ─────────────────────────────────────────────────────
@@ -164,8 +173,12 @@ const PaymentForm = ({
 
     // Si el nivel actual no está disponible para el plan (p. ej. viene preseleccionado
     // desde paso-uno), se limpia para que el usuario lo vuelva a elegir entre los válidos.
+    // ⚠️ Y se DICE (2026-11-19, segunda ronda de UX): un A1 que elegía Fluidez veía el
+    // campo vaciarse sin ninguna explicación.
+    const [nivelDescartado, setNivelDescartado] = useState<string | null>(null);
     useEffect(() => {
         if (formData.englishLevel && !isLevelAvailable(plan, formData.englishLevel)) {
+            setNivelDescartado(formData.englishLevel);
             setFormData(prev => ({ ...prev, englishLevel: "" }));
         }
     }, [plan, formData.englishLevel, isLevelAvailable]);
@@ -329,6 +342,7 @@ const PaymentForm = ({
             onPlanChange?.(value as PlanType);
             const updates: Partial<typeof formData> = {};
             if (formData.englishLevel && !isLevelAvailable(value as PlanType, formData.englishLevel)) {
+                setNivelDescartado(formData.englishLevel);
                 updates.englishLevel = "";
             }
             if (formData.interestDate && allDates.find(d => d.value === formData.interestDate)?.excludedPlans?.includes(value)) {
@@ -337,6 +351,7 @@ const PaymentForm = ({
             if (Object.keys(updates).length) setFormData(prev => ({ ...prev, ...updates }));
             return;
         }
+        if (name === "englishLevel") setNivelDescartado(null);
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (name === "horarioId") setHorarioError("");
         if (name === "email") setEmailSuggestion(null);
@@ -482,8 +497,8 @@ const PaymentForm = ({
                             <span>{precioDelPlan}</span>
                         </div>
                     )}
-                    {embedded && isSubscription && (
-                        <p className="mt-1.5 text-xs text-zinc-600">Facturación automática cada 4 semanas</p>
+                    {embedded && planActual && (
+                        <p className="mt-1.5 text-xs text-zinc-600">{notaDeCobro(isSubscription)}</p>
                     )}
                     {!embedded && (
                         <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-zinc-600 ring-1 ring-inset ring-zinc-200">
@@ -522,6 +537,25 @@ const PaymentForm = ({
                     <div className="h-1.5 w-full bg-linear-to-r from-falu-red-700 via-falu-red-500 to-yellow-orange-400" />
 
                     <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5">
+
+                        {/*
+                          ⚠️ ARRIBA del formulario, antes del correo (2026-11-19, segunda ronda
+                          de UX): abajo, junto a la fecha, se leía después de haber escrito
+                          correo, nombre y país, y la salida a /interes obligaba a repetirlos.
+                        */}
+                        {sinFechasAbiertas && (
+                            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                <p className="font-semibold">Por ahora no hay un grupo abierto para este plan.</p>
+                                <p className="mt-1">
+                                    No se puede pagar todavía. Puedes elegir otro plan, o dejarnos tus datos y te
+                                    escribimos cuando abra el próximo grupo.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <a href="/interes" className="lz-btn lz-btn-1 lz-btn-sm">Avísame del próximo grupo</a>
+                                    <a href="/paso-tres" className="lz-btn lz-btn-2 lz-btn-sm">Ver otros planes</a>
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <FieldLabel htmlFor="email">Correo electrónico *</FieldLabel>
@@ -717,6 +751,13 @@ const PaymentForm = ({
                                         </svg>
                                     </div>
                                 </div>
+                                {nivelDescartado && !formData.englishLevel && !isLevelAvailable(plan, nivelDescartado) && (
+                                    <p role="status" className="mt-2 text-xs text-amber-900">
+                                        Este plan no está disponible para el nivel {NOMBRE_DE_NIVEL[nivelDescartado] ?? nivelDescartado}.
+                                        Elige otro nivel o{" "}
+                                        <a href="/paso-tres" className="font-semibold underline">mira los planes para tu nivel</a>.
+                                    </p>
+                                )}
                             </div>
 
                             {!cohorteLoading && needsCohorte && (
@@ -745,12 +786,7 @@ const PaymentForm = ({
                                         </div>
                                     </div>
                                     {sinFechasAbiertas && (
-                                        <p role="alert" className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-                                            Por ahora no hay un grupo abierto para este plan, así que no se puede pagar
-                                            todavía. Vuelve a los planes para elegir otro, o déjanos tus datos en{" "}
-                                            <a href="/interes" className="font-semibold underline">esta página</a> y te
-                                            escribimos con la información.
-                                        </p>
+                                        <p className="mt-2 text-xs text-amber-900">Sin fechas abiertas: mira el aviso de arriba.</p>
                                     )}
                                 </div>
                             )}
@@ -895,7 +931,8 @@ const PaymentForm = ({
                             </fieldset>
                         )}
 
-                        {/* Nota de inicio */}
+                        {/* Nota de inicio. Sin fechas no hay "fecha seleccionada" de la que hablar. */}
+                        {!sinFechasAbiertas && (
                         <div className="flex items-start gap-2 rounded-xl bg-falu-red-50 border border-falu-red-100 px-4 py-3">
                             <svg className="mt-0.5 h-4 w-4 shrink-0 text-falu-red-500" viewBox="0 0 16 16" fill="none">
                                 <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
@@ -928,7 +965,7 @@ const PaymentForm = ({
                                     </p>
                                 ) : needsCohorte ? (
                                     <p className="mt-0.5 text-xs text-falu-red-700">
-                                        Tu curso, las clases grupales del viernes y las sesiones 1:1 (si aplica) inician{" "}
+                                        Tu curso, la práctica en vivo de los viernes y tus sesiones (si aplica) inician{" "}
                                         {selectedDateLabel
                                             ? <>el <span className="font-bold">{selectedDateLabel}</span></>
                                             : "en la fecha seleccionada"}.
@@ -940,6 +977,7 @@ const PaymentForm = ({
                                 )}
                             </div>
                         </div>
+                        )}
 
                         {/* Disclosure de facturación (requerido por Stripe / redes de tarjetas) */}
                         {isSubscription ? (
@@ -947,13 +985,13 @@ const PaymentForm = ({
                                 <p className="text-xs leading-relaxed text-zinc-500">
                                     <span className="font-semibold text-zinc-700">Suscripción:</span>{" "}
                                     Cancela cuando quieras desde{" "}
-                                    <a href="/mi-suscripcion" className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">tu portal de suscripción</a>.
+                                    <a href="/mi-suscripcion" target="_blank" rel="noopener noreferrer" className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">tu portal de suscripción</a>.
                                 </p>
                                 <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
                                     <svg className="h-4 w-4 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
                                     </svg>
-                                    <span className="text-xs font-semibold text-emerald-800">Reembolso garantizado los primeros 3 días</span>
+                                    <span className="text-xs font-semibold text-emerald-800">Reembolso garantizado los primeros 3 días (1.ª inscripción)</span>
                                 </div>
                             </div>
                         ) : (
