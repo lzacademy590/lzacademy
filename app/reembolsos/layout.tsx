@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "Política de Reembolso y Cancelación de LZ English Academy: garantía de 3 días para estudiantes nuevos, renovaciones no reembolsables, cómo solicitar un reembolso y su efecto.",
   alternates: { canonical: `${URL_DEL_SITIO}/reembolsos` },
   openGraph: {
-    title: "Política de Reembolso | LZ English Academy",
+    title: "Política de Reembolso | Lainz 590",
     description:
       "Política de Reembolso y Cancelación de LZ English Academy y del Método 590.",
     url: `${URL_DEL_SITIO}/reembolsos`,

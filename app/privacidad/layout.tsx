@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "Política de Privacidad de LZ English Academy y del Método 590: qué datos recolectamos, para qué los usamos, con quién los compartimos, conservación, tus derechos, cookies y contacto.",
   alternates: { canonical: `${URL_DEL_SITIO}/privacidad` },
   openGraph: {
-    title: "Política de Privacidad | LZ English Academy",
+    title: "Política de Privacidad | Lainz 590",
     description:
       "Política de Privacidad de LZ English Academy y del Método 590.",
     url: `${URL_DEL_SITIO}/privacidad`,

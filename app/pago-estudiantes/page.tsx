@@ -8,6 +8,7 @@ import { usePlanesDelCatalogo, precioEtiqueta } from "@/app/hooks/usePlanesDelCa
 import { leerRespuesta, MENSAJE_SATURADO } from "@/app/lib/respuesta-del-backend";
 import { medirInicioDePago } from "@/app/lib/analitica";
 import { CORREO_DE_CONTACTO } from "@/app/lib/sitio";
+import { notaDeCobro } from "@/app/components/PrecioDelPlan";
 
 interface StudentData {
   full_name: string;
@@ -129,7 +130,7 @@ export default function PagoEstudiantesPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.found) {
-        setVerifyError("No encontramos ninguna cuenta con ese correo. Esta ruta es exclusiva para estudiantes actuales.");
+        setVerifyError("No encontramos ninguna cuenta con ese correo. Esta página es solo para quienes ya estudian con nosotros. Si aún no eres alumno, empieza en «Descubre tu plan».");
         return;
       }
       setStudent(data.user);
@@ -254,23 +255,24 @@ export default function PagoEstudiantesPage() {
   // ─── Step 1: Email input ───────────────────────────────────────────────────
   if (!student) {
     return (
-      <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4 py-16">
+      <main className="min-h-screen bg-lz-lila flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md">
 
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-800 mb-5 shadow-lg">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-lz-grape mb-5">
               <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-extrabold text-zinc-900">Área de estudiantes</h1>
-            <p className="mt-2 text-sm text-zinc-500 max-w-xs mx-auto">
-              Esta ruta es exclusiva para estudiantes actuales de LZ English Academy.
+            <h1 className="lz-display font-display text-[30px] text-lz-ink">Renueva o compra tu plan</h1>
+            <p className="mt-2 text-sm text-zinc-600 max-w-sm mx-auto">
+              Para quienes ya estudian con nosotros. Escribe el correo con el que te inscribiste y
+              te mostramos los planes y fechas para pagar.
             </p>
           </div>
 
           <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
-            <div className="h-1.5 w-full bg-linear-to-r from-falu-red-700 via-falu-red-500 to-yellow-orange-400" />
+            <div className="h-1.5 w-full bg-linear-to-r from-lz-violet via-lz-grape to-lz-fucsia" />
             <form onSubmit={handleVerify} className="p-6 sm:p-8 space-y-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-zinc-700 mb-1.5">
@@ -301,7 +303,7 @@ export default function PagoEstudiantesPage() {
               <button
                 type="submit"
                 disabled={verifying || !email.trim()}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white bg-zinc-800 hover:bg-zinc-900 active:bg-zinc-950 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white bg-lz-grape hover:bg-lz-violet transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 {verifying ? (
                   <>
@@ -312,7 +314,7 @@ export default function PagoEstudiantesPage() {
                   </>
                 ) : (
                   <>
-                    Verificar acceso
+                    Continuar
                     <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
                       <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -367,7 +369,7 @@ export default function PagoEstudiantesPage() {
   const displayPrice = appliedDiscount ? formatPrice(appliedDiscount.discountedAmount) : precioDelPlan;
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-12">
+    <main className="min-h-screen bg-lz-lila px-4 py-12">
       <div className="w-full max-w-lg mx-auto space-y-4">
 
         {/* Student identity card */}
@@ -408,7 +410,7 @@ export default function PagoEstudiantesPage() {
 
         {/* Selection form */}
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
-          <div className="h-1.5 w-full bg-linear-to-r from-falu-red-700 via-falu-red-500 to-yellow-orange-400" />
+          <div className="h-1.5 w-full bg-linear-to-r from-lz-violet via-lz-grape to-lz-fucsia" />
 
           <form onSubmit={handleCheckout} className="p-6 sm:p-8 space-y-5">
             <div>
@@ -453,9 +455,7 @@ export default function PagoEstudiantesPage() {
                   </svg>
                 </div>
               </div>
-              {isSubscription && (
-                <p className="mt-1.5 text-xs text-zinc-400">Facturación automática cada 4 semanas</p>
-              )}
+              {planActual && <p className="mt-1.5 text-xs text-zinc-600">{notaDeCobro(isSubscription)}</p>}
             </div>
 
             {/* Level */}
@@ -563,7 +563,7 @@ export default function PagoEstudiantesPage() {
                       type="button"
                       onClick={handleApplyDiscount}
                       disabled={validatingDiscount || !discountCode.trim()}
-                      className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white bg-zinc-800 hover:bg-zinc-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white bg-lz-grape hover:bg-lz-violet transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {validatingDiscount ? (
                         <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none">
@@ -592,7 +592,7 @@ export default function PagoEstudiantesPage() {
               <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                 <p className="text-xs leading-relaxed text-zinc-500">
                   <span className="font-semibold text-zinc-700">Suscripción:</span>{" "}
-                  se te cobrará {precioDelPlan} cada 4 semanas de forma automática hasta que canceles.
+                  se te cobrará {precioDelPlan} cada 28 días de forma automática hasta que canceles.
                   Cancela cuando quieras escribiendo a{" "}
                   <a href={`mailto:${CORREO_DE_CONTACTO}`} className="font-medium text-falu-red-700 underline underline-offset-2 hover:text-falu-red-800">{CORREO_DE_CONTACTO}</a>;
                   conservas acceso hasta el final del periodo ya pagado.
