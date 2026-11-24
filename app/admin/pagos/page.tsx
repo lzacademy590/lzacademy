@@ -33,12 +33,16 @@ import {
     nivelLabel,
     ESTADOS_DE_ALUMNO,
     TONO_CLASES,
+    Chip,
+    etiquetaDeEstadoReal,
+    type EstadoReal,
 } from "../_ui";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 interface User {
-    id: number;
+    /** null = alumno que solo existe en la plataforma (sin ficha aquí). */
+    id: number | null;
     email: string;
     full_name: string;
     country: string;
@@ -50,6 +54,25 @@ interface User {
     last_payment_date: string | null;
     created_at: string;
     updated_at: string;
+    /** Lo que dice la plataforma; si viene, el estado lo lleva ella y aquí no se cambia. */
+    estado_real?: EstadoReal | null;
+}
+
+/** Clave estable de una fila: las que no tienen ficha aquí van por correo. */
+const claveDe = (u: User) => u.id ?? `plataforma:${u.email}`;
+
+/**
+ * El estado de una fila. El selector escribe `users.status` de ESTE sitio, que es
+ * lo que cuenta el cupo de los horarios: solo se ofrece cuando la ficha existe y
+ * la plataforma no lleva a ese alumno. Si no, el estado de la plataforma, fijo
+ * (como en la búsqueda).
+ */
+function EstadoDeFila({ u, guardando, onCambio, className = "" }: { u: User; guardando: boolean; onCambio: (v: string) => void; className?: string }) {
+    if (u.id === null || u.estado_real) {
+        const e = u.estado_real ? etiquetaDeEstadoReal(u.estado_real.estado) : { label: "—", tono: "gris" as const };
+        return <span className={className} title="Lo lleva la plataforma"><Chip tono={e.tono} conPunto>{e.label}</Chip></span>;
+    }
+    return <SelectorDeEstado valor={u.status} deshabilitado={guardando} onCambio={onCambio} className={className} />;
 }
 
 interface DashboardData {
@@ -152,7 +175,8 @@ export default function Dashboard() {
 
     const handleStatusChange = async (user: User, newStatus: string) => {
         const anterior = user.status;
-        if (newStatus === anterior) return;
+        if (newStatus === anterior || user.id === null || user.estado_real) return;
+        const id = user.id;
         const ok = await confirmar({
             titulo: `¿Cambiar el estado de ${user.full_name || user.email}?`,
             mensaje: <>{etiquetaDeEstado(anterior)} → <strong>{etiquetaDeEstado(newStatus)}</strong></>,
@@ -161,12 +185,12 @@ export default function Dashboard() {
         });
         if (!ok) return;
 
-        ponerEstado(user.id, newStatus);
-        setGuardando((s) => new Set(s).add(user.id));
+        ponerEstado(id, newStatus);
+        setGuardando((s) => new Set(s).add(id));
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/users/${user.id}/status`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/admin/users/${id}/status`, {
                 method: "PATCH",
                 headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
                 body: JSON.stringify({ status: newStatus }),
@@ -174,10 +198,10 @@ export default function Dashboard() {
             if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
             toast.exito(`${user.full_name || user.email}: ${etiquetaDeEstado(newStatus)}`);
         } catch (e) {
-            ponerEstado(user.id, anterior);
+            ponerEstado(id, anterior);
             toast.error(`No se pudo cambiar el estado. ${e instanceof Error ? e.message : "Error de red"}`);
         } finally {
-            setGuardando((s) => { const n = new Set(s); n.delete(user.id); return n; });
+            setGuardando((s) => { const n = new Set(s); n.delete(id); return n; });
         }
     };
 
@@ -187,7 +211,7 @@ export default function Dashboard() {
     const atRiskUsers = users.filter((u) =>
         u.status === "active" && (!u.last_payment_date || dayjs().diff(dayjs.utc(u.last_payment_date), "day") > 30)
     );
-    const atRiskIds = new Set(atRiskUsers.map((u) => u.id));
+    const atRiskIds = new Set(atRiskUsers.map(claveDe));
 
     const filteredUsers = users.filter((u) => {
         if (filters.country && u.country !== filters.country) return false;
@@ -197,7 +221,7 @@ export default function Dashboard() {
         if (filters.inscriptionDate && !u.inscription_date?.startsWith(filters.inscriptionDate)) return false;
         if (filters.paymentDateFrom && (!u.last_payment_date || dayjs.utc(u.last_payment_date).tz(PT).format("YYYY-MM-DD") < filters.paymentDateFrom)) return false;
         if (filters.paymentDateTo && (!u.last_payment_date || dayjs.utc(u.last_payment_date).tz(PT).format("YYYY-MM-DD") > filters.paymentDateTo)) return false;
-        if (showAtRisk && !atRiskIds.has(u.id)) return false;
+        if (showAtRisk && !atRiskIds.has(claveDe(u))) return false;
         if (search) {
             const q = search.toLowerCase();
             if (!u.full_name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
@@ -206,7 +230,7 @@ export default function Dashboard() {
     });
 
     const sortedUsers = [...filteredUsers].sort((a, b) => {
-        if (sortBy === "id") return a.id - b.id;
+        if (sortBy === "id") return (a.id ?? Number.MAX_SAFE_INTEGER) - (b.id ?? Number.MAX_SAFE_INTEGER);
         // last_payment_date desc, nulls last
         if (!a.last_payment_date && !b.last_payment_date) return 0;
         if (!a.last_payment_date) return 1;
@@ -223,9 +247,10 @@ export default function Dashboard() {
     const handleExportExcel = () => {
         if (!data) return;
         const rows = sortedUsers.map((u) => ({
-            ID: u.id, Email: u.email, Nombre: u.full_name,
+            ID: u.id ?? "Solo en la plataforma", Email: u.email, Nombre: u.full_name,
             "Fecha de Inicio": u.inscription_date ? dayjs.utc(u.inscription_date).format("MM/DD/YYYY") : "N/A",
-            País: u.country, Plan: u.plan, Nivel: u.level, Motivo: u.motive, Estado: u.status,
+            País: u.country, Plan: u.plan, Nivel: u.level, Motivo: u.motive,
+            Estado: u.estado_real ? etiquetaDeEstadoReal(u.estado_real.estado).label : (ESTADOS_DE_ALUMNO[u.status]?.label ?? u.status),
             "Último Pago (PT)": u.last_payment_date ? dayjs.utc(u.last_payment_date).tz(PT).format("MM/DD/YYYY h:mm a") : "—",
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -519,10 +544,10 @@ export default function Dashboard() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {paginatedUsers.map((u) => {
-                                        const isAtRisk = atRiskIds.has(u.id);
+                                        const isAtRisk = atRiskIds.has(claveDe(u));
                                         return (
-                                            <tr key={u.id} className={`transition-colors ${isAtRisk ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"}`}>
-                                                <td className="px-4 py-3 text-xs text-gray-400">{u.id}</td>
+                                            <tr key={claveDe(u)} className={`transition-colors ${isAtRisk ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"}`}>
+                                                <td className="px-4 py-3 text-xs text-gray-400">{u.id ?? "—"}</td>
                                                 <td className="px-4 py-3"><CopyEmail email={u.email} /></td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">
                                                     {isAtRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 mb-0.5" title="Sin pago en más de 30 días" />}
@@ -532,7 +557,7 @@ export default function Dashboard() {
                                                 <td className="px-4 py-3 text-sm text-gray-600">{u.country}</td>
                                                 <td className="px-4 py-3"><PlanBadge plan={u.plan} /></td>
                                                 <td className="px-4 py-3">
-                                                    <SelectorDeEstado valor={u.status} deshabilitado={guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} />
+                                                    <EstadoDeFila u={u} guardando={u.id !== null && guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} />
                                                 </td>
                                                 <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTimePT(u.last_payment_date)}</td>
                                                 <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{nivelLabel(u.level)}</td>
@@ -549,9 +574,9 @@ export default function Dashboard() {
                         {/* Móvil */}
                         <div className="md:hidden flex flex-col gap-3 p-3">
                             {paginatedUsers.map((u) => {
-                                const isAtRisk = atRiskIds.has(u.id);
+                                const isAtRisk = atRiskIds.has(claveDe(u));
                                 return (
-                                    <div key={u.id} className={`rounded-2xl border p-4 ${isAtRisk ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
+                                    <div key={claveDe(u)} className={`rounded-2xl border p-4 ${isAtRisk ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
                                         <div className="flex items-start justify-between gap-2 mb-2">
                                             <div className="min-w-0">
                                                 <p className="text-sm font-semibold text-gray-800">
@@ -560,7 +585,7 @@ export default function Dashboard() {
                                                 </p>
                                                 <CopyEmail email={u.email} />
                                             </div>
-                                            <SelectorDeEstado valor={u.status} deshabilitado={guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} className="flex-shrink-0" />
+                                            <EstadoDeFila u={u} guardando={u.id !== null && guardando.has(u.id)} onCambio={(v) => handleStatusChange(u, v)} className="flex-shrink-0" />
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2 mt-2">
                                             <PlanBadge plan={u.plan} />

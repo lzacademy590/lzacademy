@@ -25,6 +25,8 @@ import {
     type Tono,
     EscribirCorreo,
     PLANTILLAS,
+    etiquetaDeEstadoReal,
+    type EstadoReal,
 } from "../_ui";
 import { fmtDatePT, fmtDateTimePT, fmtDia, fmtMoney } from "../_utils/format";
 
@@ -81,17 +83,9 @@ interface Interest {
     id: number; email: string; full_name: string;
     country: string; motive: string | null; created_at: string;
 }
-/**
- * Si el último cobro del alumno vino de la PLATAFORMA (volvió a comprar allí),
- * su plan, importe (centavos), fecha y si está vigente (≤ 35 días). La ficha de
- * aquí se queda con su última compra en el sitio web: ver
- * lzacademy-backend/src/services/compra-en-la-plataforma.service.js.
- */
-interface CompraEnLaPlataforma {
-    plan: string | null; amount: number; fecha: string; type: string | null; vigente: boolean;
-}
 interface UserResult {
-    id: number; email: string; full_name: string; country: string;
+    /** null = alumno que solo existe en la plataforma (no tiene ficha aquí). */
+    id: number | null; email: string; full_name: string; country: string;
     plan: string; level: string; motive: string; status: string;
     inscription_date: string | null; last_payment_date: string | null;
     customer_stripe_id: string | null; created_at: string;
@@ -101,7 +95,10 @@ interface UserResult {
     cancel_at_period_end: boolean | null;
     current_period_end: string | null;
     payments: Payment[]; interest: Interest[];
-    compra_en_la_plataforma?: CompraEnLaPlataforma | null;
+    estado_real?: EstadoReal | null;
+    fuente_estado?: "plataforma" | "sitio";
+    ficha_del_sitio?: { plan: string; status: string; subscription_status: string | null; current_period_end: string | null } | null;
+    estado_de_la_plataforma_fallo?: string | null;
 }
 
 /** Lee el `error` de una respuesta fallida sin lanzar si el cuerpo no es JSON. */
@@ -212,7 +209,9 @@ export default function BusquedaPage() {
 
     function openUser(user: UserResult) {
         setSelected(user);
-        setEditForm({ plan: user.plan, level: user.level, inscription_date: user.inscription_date ?? "", email: user.email });
+        // El formulario parte de la FICHA de aquí, no del estado de la plataforma:
+        // guardar manda el plan siempre y reescribiría la ficha sin querer.
+        setEditForm({ plan: user.ficha_del_sitio?.plan ?? user.plan, level: user.level, inscription_date: user.inscription_date ?? "", email: user.email });
         setNotesDraft(user.notes ?? "");
         setEditing(false);
         setPortalUrl(null);
@@ -239,7 +238,7 @@ export default function BusquedaPage() {
     }
 
     async function handleCancelSubscription(refund: boolean) {
-        if (!selected) return;
+        if (!selected || selected.id === null) return;
         const alumno = <p className="mt-2 text-gray-700"><strong>{selected.full_name}</strong> · {selected.email}</p>;
         const ok = refund
             ? await confirmar({
@@ -278,7 +277,7 @@ export default function BusquedaPage() {
     }
 
     async function handleBillingPortal() {
-        if (!selected) return;
+        if (!selected || selected.id === null) return;
         setSubBusy("portal");
         setPortalUrl(null);
         setPortalCopied(false);
@@ -299,7 +298,7 @@ export default function BusquedaPage() {
     }
 
     async function handleStatusChange(newStatus: string) {
-        if (!selected || statusSaving || selected.status === newStatus) return;
+        if (!selected || selected.id === null || statusSaving || selected.status === newStatus) return;
         const usuario = selected;
         const etiqueta = ESTADOS_DE_ALUMNO[newStatus]?.label ?? newStatus;
         const ok = await confirmar({
@@ -331,7 +330,7 @@ export default function BusquedaPage() {
 
     /** `manual`: lo pidió el botón (avisa si no hay nada que guardar); si no, el blur. */
     async function handleSaveNotes(manual = false) {
-        if (!selected || notesSaving) return;
+        if (!selected || selected.id === null || notesSaving) return;
         const usuario = selected;
         const nuevas = notesDraft;
         if (nuevas === (usuario.notes ?? "")) {
@@ -360,21 +359,22 @@ export default function BusquedaPage() {
     }
 
     async function handleSave() {
-        if (!selected || saving) return;
+        if (!selected || selected.id === null || saving) return;
         const usuario = selected;
         const body: Record<string, string> = { plan: editForm.plan, level: editForm.level };
         if (editForm.inscription_date) body.inscription_date = editForm.inscription_date;
         if (editForm.email && editForm.email !== usuario.email) body.email = editForm.email;
 
-        const cambiaPlan = body.plan !== usuario.plan;
+        const cambiaPlan = body.plan !== (usuario.ficha_del_sitio?.plan ?? usuario.plan);
         const cambiaEmail = !!body.email;
         if (cambiaPlan || cambiaEmail) {
             const ok = await confirmar({
                 titulo: `¿Guardar los cambios de ${usuario.full_name}?`,
                 mensaje: (
                     <ul className="list-disc pl-5 space-y-1">
-                        {cambiaPlan && <li>Plan: <strong>{usuario.plan || "—"}</strong> → <strong>{body.plan}</strong></li>}
+                        {cambiaPlan && <li>Plan en la ficha de este sitio: <strong>{(usuario.ficha_del_sitio?.plan ?? usuario.plan) || "—"}</strong> → <strong>{body.plan}</strong></li>}
                         {cambiaEmail && <li>Correo: <strong>{usuario.email}</strong> → <strong>{body.email}</strong></li>}
+                        {cambiaEmail && usuario.estado_real && <li>Los dos sistemas se reconocen por el correo: si en la plataforma sigue con el viejo, aquí dejará de verse su estado de allí.</li>}
                     </ul>
                 ),
                 confirmar: "Sí, guardar",
@@ -392,8 +392,13 @@ export default function BusquedaPage() {
                 body: JSON.stringify(body),
             });
             if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudieron guardar los cambios"));
-            setSelected(prev => prev && prev.id === usuario.id ? { ...prev, ...body } : prev);
-            setResults(prev => prev.map(u => u.id === usuario.id ? { ...u, ...body } : u));
+            const aplicar = (u: UserResult): UserResult => {
+                if (!u.estado_real) return { ...u, ...body };
+                const { plan, ...resto } = body;
+                return { ...u, ...resto, ficha_del_sitio: u.ficha_del_sitio ? { ...u.ficha_del_sitio, plan: plan ?? u.ficha_del_sitio.plan } : u.ficha_del_sitio };
+            };
+            setSelected(prev => prev && prev.id === usuario.id ? aplicar(prev) : prev);
+            setResults(prev => prev.map(u => u.id === usuario.id ? aplicar(u) : u));
             setEditing(false);
             toast.exito("Cambios guardados correctamente.");
         } catch (err) {
@@ -414,7 +419,8 @@ export default function BusquedaPage() {
     // Un plan o nivel que el desplegable no conoce (un plan adoptado, un dato viejo)
     // se añade como opción: si no, el <select> caería a su primera opción y guardar
     // le cambiaría el plan al alumno sin que nadie lo eligiera.
-    const opcionesDePlan = selected && selected.plan && !PLANS.includes(selected.plan) ? [selected.plan, ...PLANS] : PLANS;
+    const planDeLaFicha = selected ? (selected.ficha_del_sitio?.plan ?? selected.plan) : null;
+    const opcionesDePlan = planDeLaFicha && !PLANS.includes(planDeLaFicha) ? [planDeLaFicha, ...PLANS] : PLANS;
     const opcionesDeNivel: { value: string; label: string }[] = [
         ...(selected && selected.level && !NIVELES.some(n => n.value === selected.level) ? [{ value: selected.level, label: selected.level }] : []),
         ...NIVELES.map(n => ({ value: n.value as string, label: n.label as string })),
@@ -474,11 +480,11 @@ export default function BusquedaPage() {
                             {results.length} resultado{results.length !== 1 ? "s" : ""}
                         </p>
                         {results.map(u => {
-                            const isActive = selected?.id === u.id;
+                            const isActive = selected?.email === u.email;
                             const tono = ESTADOS_DE_ALUMNO[u.status]?.tono ?? "gris";
                             return (
                                 <button
-                                    key={u.id}
+                                    key={u.id ?? `plataforma:${u.email}`}
                                     onClick={() => openUser(u)}
                                     className={`w-full text-left rounded-2xl border p-3.5 transition-all duration-150 cursor-pointer ${
                                         isActive
@@ -541,6 +547,13 @@ export default function BusquedaPage() {
                                             </div>
                                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                                                 {/* Status */}
+                                                {selected.estado_real ? (
+                                                    // El estado lo lleva la PLATAFORMA: aquí no se cambia (los
+                                                    // botones escribirían la ficha de este sitio, que no manda).
+                                                    <Chip tono={etiquetaDeEstadoReal(selected.estado_real.estado).tono} conPunto>
+                                                        {etiquetaDeEstadoReal(selected.estado_real.estado).label}
+                                                    </Chip>
+                                                ) : (
                                                 <div className="flex items-center gap-2">
                                                     {statusSaving && <Spinner className="w-3.5 h-3.5 text-gray-400" />}
                                                     <Pildoras
@@ -549,8 +562,9 @@ export default function BusquedaPage() {
                                                         onCambio={handleStatusChange}
                                                     />
                                                 </div>
+                                                )}
                                                 {/* Edit / Save */}
-                                                {!editing ? (
+                                                {selected.id === null ? null : !editing ? (
                                                     <div className="flex flex-wrap justify-end gap-2">
                                                     <Boton variante="secundario" tamano="sm" onClick={() => setEscribiendo(true)}>
                                                         Escribir correo
@@ -579,6 +593,30 @@ export default function BusquedaPage() {
                                     </div>
                                 </div>
 
+                                {selected.estado_de_la_plataforma_fallo && (
+                                    <div className="mb-5">
+                                        <Aviso tono="ambar" titulo="No se pudo leer la plataforma">
+                                            {selected.estado_de_la_plataforma_fallo} Lo que ves es la ficha de este sitio, que puede no coincidir.
+                                        </Aviso>
+                                    </div>
+                                )}
+                                {selected.estado_real && (
+                                    <div className="mb-5">
+                                        <Aviso
+                                            tono={selected.estado_real.tieneAcceso ? "azul" : "ambar"}
+                                            titulo={selected.id === null ? "Compró solo en la plataforma" : "Estado según la plataforma"}
+                                        >
+                                            {selected.estado_real.planNombre || selected.plan || "—"} · {etiquetaDeEstadoReal(selected.estado_real.estado).label.toLowerCase()}
+                                            {selected.estado_real.accesoHasta ? ` · ${selected.estado_real.tieneAcceso ? "acceso hasta el" : "terminó el"} ${fmtDatePT(selected.estado_real.accesoHasta)}` : ""}
+                                            {selected.estado_real.ultimoCobro ? ` · último cobro el ${fmtDatePT(selected.estado_real.ultimoCobro.fecha)} (${fmtMoney(Math.round(selected.estado_real.ultimoCobro.monto * 100))})` : ""}.{" "}
+                                            La plataforma es la que da el acceso, así que este es el estado que vale.
+                                            {selected.ficha_del_sitio && (selected.ficha_del_sitio.status !== selected.status || selected.ficha_del_sitio.plan !== selected.plan) && (
+                                                <> La ficha de este sitio guarda su última compra aquí ({selected.ficha_del_sitio.plan}, {(ESTADOS_DE_ALUMNO[selected.ficha_del_sitio.status]?.label ?? selected.ficha_del_sitio.status).toLowerCase()}); no se cambia para no contar dos veces su plaza en los horarios.</>
+                                            )}
+                                        </Aviso>
+                                    </div>
+                                )}
+
                                 {/* Edit hint */}
                                 {editing && (
                                     <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600">
@@ -590,7 +628,7 @@ export default function BusquedaPage() {
                                 {/* Info grid */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                                     <Field label="ID en BD">
-                                        <span className="font-mono font-semibold text-gray-600">#{selected.id}</span>
+                                        <span className="font-mono font-semibold text-gray-600">{selected.id === null ? "Sin ficha aquí" : `#${selected.id}`}</span>
                                     </Field>
 
                                     <Field label="País">
@@ -654,22 +692,8 @@ export default function BusquedaPage() {
                             </Tarjeta>
 
                             {/* ── Suscripción ── */}
-                            {(selected.stripe_subscription_id || selected.subscription_status || selected.compra_en_la_plataforma) && (
+                            {(selected.stripe_subscription_id || selected.subscription_status) && (
                                 <Tarjeta titulo="Suscripción">
-                                    {selected.compra_en_la_plataforma && (
-                                        <div className="mb-5">
-                                            <Aviso
-                                                tono={selected.compra_en_la_plataforma.vigente ? "azul" : "ambar"}
-                                                titulo={selected.compra_en_la_plataforma.vigente ? "Ahora paga en la plataforma" : "Su última compra fue en la plataforma"}
-                                            >
-                                                Último cobro: {selected.compra_en_la_plataforma.plan || "—"} · {fmtMoney(selected.compra_en_la_plataforma.amount)} · {fmtDatePT(selected.compra_en_la_plataforma.fecha)}
-                                                {selected.compra_en_la_plataforma.type === "renewal" ? " (renovación)" : ""}.{" "}
-                                                {selected.compra_en_la_plataforma.vigente
-                                                    ? "Su plan y su periodo los lleva la plataforma: el estado, el plan y la fecha de abajo son de su última compra en el sitio web."
-                                                    : "Hace más de 35 días que no hay cobro: puede que también haya dejado de pagar allí."}
-                                            </Aviso>
-                                        </div>
-                                    )}
                                     {/* Info grid */}
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-6">
                                         <Field label="Estado">
@@ -686,7 +710,11 @@ export default function BusquedaPage() {
                                             <span className="text-gray-600">{fmtDatePT(selected.current_period_end)}</span>
                                         </Field>
                                         <Field label="Subscription ID">
-                                            <CopyBadge value={selected.stripe_subscription_id} label={selected.stripe_subscription_id ? selected.stripe_subscription_id.slice(0, 18) + "…" : undefined} />
+                                            {selected.stripe_subscription_id === "plataforma" ? (
+                                                <span className="text-gray-600">La lleva la plataforma</span>
+                                            ) : (
+                                                <CopyBadge value={selected.stripe_subscription_id} label={selected.stripe_subscription_id ? selected.stripe_subscription_id.slice(0, 18) + "…" : undefined} />
+                                            )}
                                         </Field>
                                     </div>
 
@@ -712,7 +740,11 @@ export default function BusquedaPage() {
                                         </div>
                                     )}
 
-                                    {/* Actions */}
+                                    {/* Actions: actúan sobre la suscripción de ESTE sitio. Si ya no está viva
+                                        y el alumno paga en la plataforma, no hay nada que cancelar aquí. */}
+                                    {selected.id === null || selected.stripe_subscription_id === "plataforma" || (selected.fuente_estado === "plataforma" && selected.ficha_del_sitio?.subscription_status === "canceled") ? (
+                                        <p className="text-xs text-gray-500">Su suscripción vigente es la de la plataforma: se gestiona desde el admin de la plataforma.</p>
+                                    ) : (
                                     <div className="flex flex-col sm:flex-row flex-wrap gap-2.5">
                                         <Boton
                                             variante="secundario"
@@ -742,6 +774,7 @@ export default function BusquedaPage() {
                                             {subBusy === "portal" ? "Generando…" : "Generar link de portal de Stripe"}
                                         </Boton>
                                     </div>
+                                    )}
                                 </Tarjeta>
                             )}
 
