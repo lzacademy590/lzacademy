@@ -61,7 +61,9 @@ interface InicioData {
     activity: {
         payments: { id: string | number; created_at: string; amount: number; plan: string; full_name: string; email: string }[];
         leads: { id: string; created_at: string; full_name: string; email: string; country: string; english_level: string; contacted: boolean }[];
-        cancellations: { id: number; updated_at: string; full_name: string; email: string; plan: string; kind: "canceled" | "past_due" | "scheduled"; current_period_end: string | null }[];
+        cancellations: { id: number; updated_at: string; full_name: string; email: string; plan: string; kind: "canceled" | "past_due" | "scheduled"; current_period_end: string | null;
+            // Si volvió a comprar en la plataforma (último cobro de allí). Ver busqueda/page.tsx.
+            compra_en_la_plataforma?: { plan: string | null; amount: number; fecha: string; vigente: boolean } | null }[];
     };
 }
 
@@ -361,7 +363,9 @@ export default function Inicio() {
                                             </div>
                                             <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${k.cls}`}>{k.label}</span>
-                                                {c.current_period_end && (
+                                                {c.compra_en_la_plataforma?.vigente ? (
+                                                    <p className="text-[10px] text-blue-700">Paga en la plataforma: {c.compra_en_la_plataforma.plan || "—"} desde {fmtDatePT(c.compra_en_la_plataforma.fecha)}</p>
+                                                ) : c.current_period_end && (
                                                     <p className="text-[10px] text-gray-400">hasta {fmtDatePT(c.current_period_end)}</p>
                                                 )}
                                             </div>
