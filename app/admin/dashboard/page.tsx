@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { planColor } from "../_utils/planColors";
 import { ErrorState } from "../_utils/ErrorState";
 import { fmtDatePT, fmtDateTimePT, fmtDia, fmtMonthYear as formatMonth, MONTH_NAMES } from "../_utils/format";
-import { Cargando, EncabezadoDePagina, FilaDeNumeros, Pagina, Tarjeta, TarjetaDeNumero } from "../_ui";
+import { Aviso, Cargando, EncabezadoDePagina, FilaDeNumeros, Pagina, Tarjeta, TarjetaDeNumero } from "../_ui";
 import { PendientesDeHoy } from "./PendientesDeHoy";
 
 // La clave viene en dos formas y significan cosas distintas (ver `cohortKey` en
@@ -61,10 +61,12 @@ interface InicioData {
     activity: {
         payments: { id: string | number; created_at: string; amount: number; plan: string; full_name: string; email: string }[];
         leads: { id: string; created_at: string; full_name: string; email: string; country: string; english_level: string; contacted: boolean }[];
-        cancellations: { id: number; updated_at: string; full_name: string; email: string; plan: string; kind: "canceled" | "past_due" | "scheduled"; current_period_end: string | null;
-            // Si volvió a comprar en la plataforma (último cobro de allí). Ver busqueda/page.tsx.
-            compra_en_la_plataforma?: { plan: string | null; amount: number; fecha: string; vigente: boolean } | null }[];
+        // id null = alumno que solo existe en la plataforma. Las cancelaciones ya
+        // salen del estado REAL (el de la plataforma): quien paga allí no aparece.
+        cancellations: { id: number | null; updated_at: string; full_name: string; email: string; plan: string; kind: "canceled" | "past_due" | "scheduled"; current_period_end: string | null }[];
     };
+    /** Si no se pudo leer el estado de la plataforma, las cifras son las de las fichas de aquí. */
+    estadoDeLaPlataforma?: { fallo: string | null };
 }
 
 // Mini gráfico de barras para la tendencia. Sin libs externas; Tailwind puro.
@@ -139,6 +141,13 @@ export default function Inicio() {
     return (
         <Pagina>
             <EncabezadoDePagina titulo="Inicio" descripcion="Lo que hay que atender hoy y cómo va el negocio" />
+            {data?.estadoDeLaPlataforma?.fallo && (
+                <div className="mb-4">
+                    <Aviso tono="ambar" titulo="No se pudo leer el estado de la plataforma">
+                        {data.estadoDeLaPlataforma.fallo} Las cifras de abajo salen de las fichas de este sitio y pueden no coincidir con la plataforma.
+                    </Aviso>
+                </div>
+            )}
 
             <PendientesDeHoy />
 
@@ -351,7 +360,7 @@ export default function Inicio() {
                                 };
                                 const k = kindMap[c.kind];
                                 return (
-                                    <li key={c.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
+                                    <li key={c.id ?? c.email} className="px-5 py-3 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-sm font-medium text-gray-800 truncate">{c.full_name || "—"}</p>
@@ -363,9 +372,7 @@ export default function Inicio() {
                                             </div>
                                             <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${k.cls}`}>{k.label}</span>
-                                                {c.compra_en_la_plataforma?.vigente ? (
-                                                    <p className="text-[10px] text-blue-700">Paga en la plataforma: {c.compra_en_la_plataforma.plan || "—"} desde {fmtDatePT(c.compra_en_la_plataforma.fecha)}</p>
-                                                ) : c.current_period_end && (
+                                                {c.current_period_end && (
                                                     <p className="text-[10px] text-gray-400">hasta {fmtDatePT(c.current_period_end)}</p>
                                                 )}
                                             </div>

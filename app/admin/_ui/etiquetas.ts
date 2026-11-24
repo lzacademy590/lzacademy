@@ -50,3 +50,28 @@ export const ESTADOS_DE_SUSCRIPCION: Record<string, { label: string; tono: Tono 
   incomplete: { label: "Incompleta", tono: "gris" },
   incomplete_expired: { label: "Expirada", tono: "gris" },
 };
+
+/**
+ * El estado del alumno según la PLATAFORMA, que es quien da o quita el acceso
+ * (decisión de negocio 2026-11-23: los dos paneles enseñan lo mismo). El backend
+ * lo superpone a la ficha (`estado_real`), y la ficha original va en
+ * `ficha_del_sitio`. Ver lzacademy-backend/src/services/estado-en-la-plataforma.service.js.
+ */
+export interface EstadoReal {
+  plan: string | null; planNombre: string | null;
+  estado: "activo" | "acceso_manual" | "pago_pendiente" | "en_prueba" | "cancela_al_final" | "caido" | "gratis";
+  tieneAcceso: boolean; accesoHasta: string | null;
+  ultimoCobro: { fecha: string; monto: number } | null;
+}
+export const ESTADO_REAL: Record<EstadoReal["estado"], { label: string; tono: Tono }> = {
+  activo: { label: "Activo", tono: "verde" },
+  acceso_manual: { label: "Acceso manual", tono: "azul" },
+  pago_pendiente: { label: "Pago pendiente", tono: "ambar" },
+  en_prueba: { label: "En prueba", tono: "azul" },
+  cancela_al_final: { label: "Cancela al final del periodo", tono: "ambar" },
+  caido: { label: "Plan caído", tono: "rojo" },
+  gratis: { label: "Plan gratis", tono: "gris" },
+};
+/** Con respaldo: un estado nuevo de la plataforma no puede tumbar la pantalla. */
+export const etiquetaDeEstadoReal = (estado: string) =>
+  ESTADO_REAL[estado as EstadoReal["estado"]] ?? { label: estado, tono: "gris" as Tono };
