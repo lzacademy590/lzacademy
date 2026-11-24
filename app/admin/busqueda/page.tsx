@@ -81,6 +81,15 @@ interface Interest {
     id: number; email: string; full_name: string;
     country: string; motive: string | null; created_at: string;
 }
+/**
+ * Si el último cobro del alumno vino de la PLATAFORMA (volvió a comprar allí),
+ * su plan, importe (centavos), fecha y si está vigente (≤ 35 días). La ficha de
+ * aquí se queda con su última compra en el sitio web: ver
+ * lzacademy-backend/src/services/compra-en-la-plataforma.service.js.
+ */
+interface CompraEnLaPlataforma {
+    plan: string | null; amount: number; fecha: string; type: string | null; vigente: boolean;
+}
 interface UserResult {
     id: number; email: string; full_name: string; country: string;
     plan: string; level: string; motive: string; status: string;
@@ -92,6 +101,7 @@ interface UserResult {
     cancel_at_period_end: boolean | null;
     current_period_end: string | null;
     payments: Payment[]; interest: Interest[];
+    compra_en_la_plataforma?: CompraEnLaPlataforma | null;
 }
 
 /** Lee el `error` de una respuesta fallida sin lanzar si el cuerpo no es JSON. */
@@ -644,8 +654,22 @@ export default function BusquedaPage() {
                             </Tarjeta>
 
                             {/* ── Suscripción ── */}
-                            {(selected.stripe_subscription_id || selected.subscription_status) && (
+                            {(selected.stripe_subscription_id || selected.subscription_status || selected.compra_en_la_plataforma) && (
                                 <Tarjeta titulo="Suscripción">
+                                    {selected.compra_en_la_plataforma && (
+                                        <div className="mb-5">
+                                            <Aviso
+                                                tono={selected.compra_en_la_plataforma.vigente ? "azul" : "ambar"}
+                                                titulo={selected.compra_en_la_plataforma.vigente ? "Ahora paga en la plataforma" : "Su última compra fue en la plataforma"}
+                                            >
+                                                Último cobro: {selected.compra_en_la_plataforma.plan || "—"} · {fmtMoney(selected.compra_en_la_plataforma.amount)} · {fmtDatePT(selected.compra_en_la_plataforma.fecha)}
+                                                {selected.compra_en_la_plataforma.type === "renewal" ? " (renovación)" : ""}.{" "}
+                                                {selected.compra_en_la_plataforma.vigente
+                                                    ? "Su plan y su periodo los lleva la plataforma: el estado, el plan y la fecha de abajo son de su última compra en el sitio web."
+                                                    : "Hace más de 35 días que no hay cobro: puede que también haya dejado de pagar allí."}
+                                            </Aviso>
+                                        </div>
+                                    )}
                                     {/* Info grid */}
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-6">
                                         <Field label="Estado">

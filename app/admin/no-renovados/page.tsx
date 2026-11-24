@@ -217,7 +217,7 @@ export default function NoRenovadosPage() {
         <Pagina>
             <EncabezadoDePagina
                 titulo="No renovados"
-                descripcion="Suscriptores que cancelaron o no renovaron su suscripción"
+                descripcion="Suscriptores que cancelaron o no renovaron su suscripción. Quien volvió a comprar en la plataforma (último cobro de allí en los últimos 35 días) no sale aquí: sí renovó."
                 acciones={filtered.length > 0 && (
                     <>
                         <Boton
