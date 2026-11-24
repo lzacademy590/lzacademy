@@ -39,7 +39,8 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 interface NoRenewUser {
-    id: number;
+    /** null = alumno que solo existe en la plataforma (sin ficha aquí). */
+    id: number | null;
     email: string;
     full_name: string;
     country: string;
@@ -51,6 +52,8 @@ interface NoRenewUser {
     last_payment_date: string | null;
     /** Solo en past_due (backend desde 2026-10-18). */
     pago_fallido?: (DetalleDeFallo & { sigue_reintentando: boolean }) | null;
+    /** De dónde sale el estado: la plataforma (lo normal) o la ficha de aquí. */
+    fuente_estado?: "plataforma" | "sitio";
 }
 
 /* ── Tipo de no renovado ────────────────────────────────────────────────── */
@@ -217,7 +220,7 @@ export default function NoRenovadosPage() {
         <Pagina>
             <EncabezadoDePagina
                 titulo="No renovados"
-                descripcion="Suscriptores que cancelaron o no renovaron su suscripción. Quien volvió a comprar en la plataforma (último cobro de allí en los últimos 35 días) no sale aquí: sí renovó."
+                descripcion="Alumnos que ya no tienen acceso, o lo pierden pronto, según la plataforma (que es quien da el acceso). Quien volvió a comprar allí no sale aquí; quien solo compró allí, sí."
                 acciones={filtered.length > 0 && (
                     <>
                         <Boton
@@ -276,7 +279,7 @@ export default function NoRenovadosPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {paginated.map((u) => (
-                                        <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                                        <tr key={u.id ?? `plataforma:${u.email}`} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-5 py-3 text-sm font-semibold text-gray-800 whitespace-nowrap">{u.full_name}</td>
                                             <td className="px-5 py-3 text-sm text-gray-500">{u.email}</td>
                                             <td className="px-5 py-3 text-sm text-gray-600">{u.country}</td>
@@ -308,7 +311,7 @@ export default function NoRenovadosPage() {
                         {/* Móvil */}
                         <div className="md:hidden flex flex-col gap-3 p-3">
                             {paginated.map((u) => (
-                                <div key={u.id} className="bg-white rounded-2xl border border-gray-100 p-4">
+                                <div key={u.id ?? `plataforma:${u.email}`} className="bg-white rounded-2xl border border-gray-100 p-4">
                                     <div className="flex items-start justify-between gap-2 mb-3">
                                         <div className="min-w-0">
                                             <p className="text-sm font-semibold text-gray-800">{u.full_name}</p>
